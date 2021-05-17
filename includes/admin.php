@@ -94,9 +94,10 @@ class Admin {
 
 		$batch_size = 100;
 		$batch      = array();
+		// todo: attachment post types need to be added later because they need to run after other post types
 		foreach ( $indexer->get_data( 'item' ) as $idx => $item ) {
 			$batch[] = $item;
-			if ( $idx === $indexer->get_count( 'item' ) - 1 || ( 0 === $idx % $batch_size && count( $batch ) ) ) {
+			if ( $idx === $indexer->get_count( 'item' ) - 1 || 0 === count( $batch ) % $batch_size ) {
 				add_term_meta(
 					$term_id,
 					'job',
