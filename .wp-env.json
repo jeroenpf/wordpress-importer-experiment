@@ -2,7 +2,8 @@
   "core": "WordPress/WordPress#master",
   "plugins": [
     ".",
-    "https://downloads.wordpress.org/plugin/debug-bar.1.1.2.zip"
+    "https://downloads.wordpress.org/plugin/debug-bar.1.1.2.zip",
+    "https://downloads.wordpress.org/plugin/cron-logger.1.0.4.zip"
   ],
   "port": 1000,
   "testsPort": 1001,
@@ -11,6 +12,7 @@
   },
   "config": {
     "WP_DEBUG": true,
-    "SAVEQUERIES": true
+    "SAVEQUERIES": true,
+    "ALTERNATE_WP_CRON": true
   }
 }

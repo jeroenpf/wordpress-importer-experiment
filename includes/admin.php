@@ -7,6 +7,8 @@ class Admin {
 
 	const EXPORT_FILE_OPTION = 'importer_experiment_wxr_file';
 
+	const TAXONOMY = 'importer_experiment';
+
 	public function run() {
 
 		$action = isset( $_GET['action'] ) ? $_GET['action'] : null;
@@ -55,16 +57,11 @@ class Admin {
 		$file = get_attached_file( get_option( self::EXPORT_FILE_OPTION ) );
 		require_once( __DIR__ . '/xml_indexer.php' );
 		$indexer = new WXR_Indexer();
-		$start   = microtime( true );
 		$indexer->parse( $file );
-		$end = microtime( true );
-		echo 'Time: ' . round( $end - $start, 2 ) . "s\n";
-
-		$taxonomy = 'importer_experiment';
 
 		$terms = get_terms(
 			array(
-				'taxonomy'   => $taxonomy,
+				'taxonomy'   => self::TAXONOMY,
 				'hide_empty' => false,
 			)
 		);
@@ -75,12 +72,14 @@ class Admin {
 			delete_term_meta( $term_id, 'file' );
 			delete_term_meta( $term_id, 'file_checksum' );
 		} else {
-			$term    = wp_insert_term( 'jobs', $taxonomy );
+			$term    = wp_insert_term( 'jobs', self::TAXONOMY );
 			$term_id = $term['term_id'];
 		}
 
 		add_term_meta( $term_id, 'file', $file );
 		add_term_meta( $term_id, 'file_checksum', md5_file( $file ) );
+
+		$total_items = 0;
 
 		foreach ( $indexer->get_data( 'wp:author' ) as $item ) {
 
@@ -89,6 +88,7 @@ class Admin {
 				'job'     => 'author',
 			);
 
+			$total_items++;
 			add_metadata( 'term', $term_id, 'job', $payload );
 		}
 
@@ -98,6 +98,7 @@ class Admin {
 		// todo: attachment post types need to be added later because they need to run after other post types
 		foreach ( $indexer->get_data( 'item' ) as $idx => $item ) {
 			$batch[] = $item;
+			$total_items++;
 			if ( $idx === $item_count - 1 || count( $batch ) === $batch_size ) {
 				add_term_meta(
 					$term_id,
@@ -111,8 +112,56 @@ class Admin {
 			}
 		}
 
+		update_term_meta( $term_id, 'total', $total_items );
+		update_term_meta( $term_id, 'processed', 0 );
+
 		echo 'Memory: ' . round( memory_get_peak_usage() / 1024 / 1024, 2 ) . "MB\n";
 
+		require_once( __DIR__ . '/job_runner.php' );
+
+		$runner = new Job_Runner();
+
+		// Schedule the next job to be executed.
+		$runner->schedule_next();
+
+	}
+
+	/**
+	 * Get the import status
+	 *
+	 * @return array
+	 */
+	public function get_status() {
+
+		$terms = get_terms(
+			array(
+				'taxonomy'   => self::TAXONOMY,
+				'hide_empty' => false,
+			)
+		);
+
+		if ( ! count( $terms ) ) {
+			wp_send_json(
+				array(
+					'status' => 'uninitialized',
+				)
+			);
+			exit();
+		}
+
+		$term = $terms[0];
+
+		$total     = get_term_meta( $term->term_id, 'total', true );
+		$processed = get_term_meta( $term->term_id, 'processed', true );
+
+		wp_send_json(
+			array(
+				'status'    => 'running',
+				'total'     => $total,
+				'processed' => $processed,
+			)
+		);
+		exit();
 	}
 
 

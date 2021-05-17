@@ -16,12 +16,11 @@ namespace ImporterExperiment;
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/includes/admin.php';
+require_once __DIR__ . '/includes/job_runner.php';
+
 function show_experiment_page() {
-
-	require_once __DIR__ . '/includes/admin.php';
-
 	$admin = new Admin();
-
 	$admin->run();
 }
 
@@ -82,6 +81,45 @@ function setup_taxonomies() {
 			'single' => false,
 		)
 	);
+
+	register_term_meta(
+		$taxonomy,
+		'total',
+		array(
+			'type'   => 'int',
+			'single' => true,
+		)
+	);
+
+	register_term_meta(
+		$taxonomy,
+		'processed',
+		array(
+			'type'   => 'int',
+			'single' => true,
+		)
+	);
+
+	$runner = new Job_Runner();
+
+	// Register the action that is triggered by the cron.
+	// This action will run a single job.
+	add_action( 'run_wordpress_importer', array( $runner, 'run' ) );
+
+	// Get status
+	$admin = new Admin();
+	add_action( 'wp_ajax_wordpress_importer_progress', array( $admin, 'get_status' ) );
+
 }
 
 add_action( 'init', 'ImporterExperiment\setup_taxonomies' );
+
+function enqueue_scripts() {
+	if ( isset( $_GET['page'] ) && 'importer-experiment' === $_GET['page'] ) {
+		wp_enqueue_script( 'substack-index-js', plugins_url( '/js/status.js', __FILE__ ) );
+		wp_enqueue_style( 'substack-index-css', plugins_url( '/css/status.css', __FILE__ ) );
+	}
+}
+
+
+add_action( 'admin_init', 'ImporterExperiment\enqueue_scripts' );
