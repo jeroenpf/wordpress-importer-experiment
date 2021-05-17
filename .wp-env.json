@@ -1,8 +1,16 @@
 {
   "core": "WordPress/WordPress#master",
   "plugins": [
-    "."
+    ".",
+    "https://downloads.wordpress.org/plugin/debug-bar.1.1.2.zip"
   ],
   "port": 1000,
-  "testsPort": 1001
+  "testsPort": 1001,
+  "mappings": {
+    "php.ini": "./php.ini"
+  },
+  "config": {
+    "WP_DEBUG": true,
+    "SAVEQUERIES": true
+  }
 }
