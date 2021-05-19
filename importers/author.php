@@ -2,17 +2,21 @@
 namespace ImporterExperiment;
 
 class Author_Importer extends Partial_XML_Importer {
-	public function parse( $data ) {
+	public function parse( $state, $data ) {
 		$xml = $this->simplexml( $data );
 		if ( \is_wp_error( $xml ) ) {
 			var_dump($xml);exit;
 		}
 
-		$authors = array();
-		foreach ( $xml->xpath('/rss/wp:author') as $author_arr ) {
+		$create_users = apply_filters( 'import_allow_create_users', true );
+
+		if ( ! isset( $state['authors'] ) ) {
+			$state['authors'] = array();
+		}
+		foreach ( $xml->xpath('/rss/channel/wp:author') as $author_arr ) {
 			$a = $author_arr->children( $this->namespaces['wp'] );
 			$login = (string) $a->author_login;
-			$authors[$login] = array(
+			$state['authors'][$login] = array(
 				'author_id' => (int) $a->author_id,
 				'author_login' => $login,
 				'author_email' => (string) $a->author_email,
@@ -21,8 +25,9 @@ class Author_Importer extends Partial_XML_Importer {
 				'author_last_name' => (string) $a->author_last_name
 			);
 		}
+ 		return $state;
 	}
 }
 $author_importer = new Author_Importer;
 
-add_action( 'wordpress_importer_job_author', array( $author_importer, 'process_job' ) );
+add_action( 'wordpress_importer_job_author', array( $author_importer, 'process_job' ), 10, 2 );

@@ -20,6 +20,7 @@ require_once __DIR__ . '/includes/admin.php';
 require_once __DIR__ . '/includes/job_runner.php';
 require_once __DIR__ . '/importers/partial-xml-importer.php';
 require_once __DIR__ . '/importers/author.php';
+require_once __DIR__ . '/importers/post.php';
 
 function show_experiment_page() {
 	$admin = new Admin();
@@ -78,6 +79,15 @@ function setup_taxonomies() {
 	register_term_meta(
 		$taxonomy,
 		'job',
+		array(
+			'type'   => 'array',
+			'single' => false,
+		)
+	);
+
+	register_term_meta(
+		$taxonomy,
+		'state',
 		array(
 			'type'   => 'array',
 			'single' => false,

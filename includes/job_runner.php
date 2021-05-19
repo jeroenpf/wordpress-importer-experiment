@@ -41,13 +41,18 @@ class Job_Runner {
 		if ( ! count( $jobs ) ) {
 			return false;
 		}
+		$state = get_term_meta( $term->term_id, 'state', true );
+		if ( ! $state ) {
+			$state = array();
+		}
 
 		$job      = $jobs[0];
 		$job_data = maybe_unserialize( $job->meta_value );
 		$job_data['file'] = $file;
 		$job_data['file_checksum'] = $checksum;
 
-		do_action( 'wordpress_importer_job_' . $job_data['job'], $job_data );
+		$state = apply_filters( 'wordpress_importer_job_' . $job_data['job'], $state, $job_data );
+		update_term_meta( $term->term_id, 'state', $state );
 
 		// Delete the job (meta)
 		delete_metadata_by_mid( 'term', $job->meta_id );

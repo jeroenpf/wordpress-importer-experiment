@@ -4,10 +4,10 @@ namespace ImporterExperiment;
 abstract class Partial_XML_Importer {
 	public $namespaces = array();
 
-	public function process_job( $job ) {
+	public function process_job( $state, $job ) {
 		$f = fopen( $job['file'], 'r' );
 
-		foreach ( is_array( $job['objects'] ) ? $job['objects'] : array( $job['objects'] ) as $object ) {
+		foreach ( $job['objects'] as $object ) {
 			$start = strtok( $object, ':' );
 			$end = strtok( ':' );
 			fseek( $f, $start );
@@ -20,12 +20,14 @@ abstract class Partial_XML_Importer {
 				xmlns:wfw="http://wellformedweb.org/CommentAPI/"
 				xmlns:dc="http://purl.org/dc/elements/1.1/"
 				xmlns:wp="http://wordpress.org/export/1.2/"
-			>';
-			$root_end = '</rss>';
+			><channel>';
+			$root_end = '</channel></rss>';
 
-			$this->parse( $xml . $root . $data . $root_end );
+			$state = $this->parse( $state, $xml . $root . $data . $root_end );
 		}
 		fclose( $f );
+
+		return $state;
 	}
 
 	protected function simplexml( $data ) {
@@ -48,11 +50,10 @@ abstract class Partial_XML_Importer {
 
 		$xml = simplexml_import_dom( $dom );
 		$this->namespaces = $xml->getDocNamespaces();
-		var_dump($this->namespaces);
 		unset( $dom );
 
 		return $xml;
 	}
 
-	abstract function parse( $data );
+	abstract function parse( $state, $data );
 }
