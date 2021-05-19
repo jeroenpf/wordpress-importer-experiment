@@ -1,11 +1,14 @@
 jQuery( document ).ready(($) => {
 
-	let cron_timeout;
+	let import_completed = false;
 
 	// This runs the cron.
 	let run_cron = () => {
 		$.get('/wp-cron.php', function() {
-			timeout = setTimeout(run_cron, 100);
+
+			if( !import_completed ) {
+				setTimeout(run_cron, 100);
+			}
 		});
 	}
 
@@ -20,7 +23,7 @@ jQuery( document ).ready(($) => {
 			$( '#importer-progress .progress-bar-fill' ).css( 'width', progress + '%' );
 
 			if(progress === 100) {
-				clearTimeout(cron_timeout);
+				import_completed = true;
 				return;
 			}
 

@@ -65,12 +65,11 @@ class Job_Runner {
 	public function schedule_next() {
 		// Schedule next event if there are more jobs...
 
+		_wp_batch_split_terms();
+
 		wp_schedule_single_event(
 			time(),
-			'run_wordpress_importer',
-			array(
-				'job' => wp_generate_uuid4(),
-			)
+			'run_wordpress_importer'
 		);
 
 	}
