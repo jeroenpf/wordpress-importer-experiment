@@ -84,7 +84,7 @@ class Admin {
 		foreach ( $indexer->get_data( 'wp:author' ) as $item ) {
 
 			$payload = array(
-				'objects' => $item,
+				'objects' => array( $item ),
 				'job'     => 'author',
 			);
 

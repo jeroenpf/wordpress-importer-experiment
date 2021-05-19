@@ -44,9 +44,10 @@ class Job_Runner {
 
 		$job      = $jobs[0];
 		$job_data = maybe_unserialize( $job->meta_value );
+		$job_data['file'] = $file;
+		$job_data['file_checksum'] = $checksum;
 
-		// Todo: Execute the job
-
+		do_action( 'wordpress_importer_job_' . $job_data['job'], $job_data );
 
 		// Delete the job (meta)
 		delete_metadata_by_mid( 'term', $job->meta_id );

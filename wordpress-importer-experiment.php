@@ -18,6 +18,8 @@ defined( 'ABSPATH' ) || exit;
 
 require_once __DIR__ . '/includes/admin.php';
 require_once __DIR__ . '/includes/job_runner.php';
+require_once __DIR__ . '/importers/partial-xml-importer.php';
+require_once __DIR__ . '/importers/author.php';
 
 function show_experiment_page() {
 	$admin = new Admin();
