@@ -1,0 +1,21 @@
+{
+    "name": "jeroenpfeil/wordpress-importer-experiment",
+    "description": "An experiment that splits importing a WXR into smaller jobs",
+    "type": "library",
+    "require": {
+        "woocommerce/action-scheduler": "^3.1"
+    },
+    "autoload": {
+      "classmap": [
+        "includes/"
+      ]
+    },
+    "license": "GPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "Jeroen Pfeil",
+            "email": "jeroen.pfeil@automattic.com"
+        }
+    ],
+    "minimum-stability": "alpha"
+}

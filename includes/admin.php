@@ -55,7 +55,7 @@ class Admin {
 	 */
 	protected function create_jobs() {
 		$file = get_attached_file( get_option( self::EXPORT_FILE_OPTION ) );
-		require_once( __DIR__ . '/xml_indexer.php' );
+
 		$indexer = new WXR_Indexer();
 		$indexer->parse( $file );
 
@@ -116,8 +116,6 @@ class Admin {
 		update_term_meta( $term_id, 'processed', 0 );
 
 		echo 'Memory: ' . round( memory_get_peak_usage() / 1024 / 1024, 2 ) . "MB\n";
-
-		require_once( __DIR__ . '/job_runner.php' );
 
 		$runner = new Job_Runner();
 

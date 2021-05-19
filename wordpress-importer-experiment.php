@@ -45,6 +45,8 @@ add_action( 'admin_menu', 'ImporterExperiment\experiment_menu' );
 
 function setup_taxonomies() {
 
+	require __DIR__ . '/vendor/autoload.php';
+
 	$taxonomy = 'importer_experiment';
 	$args     = array(
 		'hierarchical'      => true, // make it hierarchical (like categories)
@@ -112,7 +114,7 @@ function setup_taxonomies() {
 
 }
 
-add_action( 'init', 'ImporterExperiment\setup_taxonomies' );
+add_action( 'admin_init', 'ImporterExperiment\setup_taxonomies' );
 
 function enqueue_scripts() {
 	if ( isset( $_GET['page'] ) && 'importer-experiment' === $_GET['page'] ) {
