@@ -11,6 +11,11 @@ class Admin {
 
 	const TAXONOMY = 'importer_experiment';
 
+	protected $type_map = array(
+		'wp:author' => 'author',
+		'item'      => 'post',
+	);
+
 	/**
 	 * @var WXR_Indexer
 	 */
@@ -96,9 +101,6 @@ class Admin {
 
 		update_term_meta( $term_id, 'total', $total_items );
 		update_term_meta( $term_id, 'processed', 0 );
-
-		echo 'Memory: ' . round( memory_get_peak_usage() / 1024 / 1024, 2 ) . "MB\n";
-
 	}
 
 	protected function batch( $type, $term_id, $batch_size = 100 ) {
@@ -123,7 +125,7 @@ class Admin {
 				);
 
 				$job_data = array(
-					'type'    => $type,
+					'type'    => $this->type_map[ $type ],
 					'meta_id' => $meta_id,
 				);
 
@@ -182,7 +184,6 @@ class Admin {
 	public function run_jobs() {
 
 		// Set the store
-
 
 		apply_filters(
 			'action_scheduler_store_class',

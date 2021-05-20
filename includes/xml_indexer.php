@@ -14,6 +14,9 @@ class WXR_Indexer {
 
 	protected $handle;
 
+	protected $data = '';
+	protected $data_offset = 0;
+
 	protected $allowed_tags = array( 'item', 'wp:category', 'wp:author', 'wp:term' );
 
 	public function __construct() {
@@ -27,11 +30,18 @@ class WXR_Indexer {
 	}
 
 	public function parse( $file ) {
+		if ( ! is_readable( $file ) ) {
+			exit;
+		}
+		$this->file = file_get_contents( $file );
 		$this->handle = fopen( $file, 'rb' );
+		$this->data_offset = 0;
 
 		while ( ! feof( $this->handle ) ) {
 			$data = fread( $this->handle, 4096 );
+			$this->data = substr( $this->data, 4096 ) . $data;
 			xml_parse( $this->parser, $data, feof( $this->handle ) );
+			$this->data_offset += strlen( $data );
 		}
 
 	}
@@ -58,8 +68,12 @@ class WXR_Indexer {
 		if ( ! in_array( $tag, $this->allowed_tags, true ) ) {
 			return;
 		}
+		$p = xml_get_current_byte_index( $this->parser );
 
-		$this->elements[ $tag ][] = xml_get_current_byte_index( $this->parser );
+		// Backtrack to find the real tag start.
+		$r = strrpos( $this->data, '<' . $tag, - ( strlen( $this->data ) - ( $p - $this->data_offset ) ) );
+
+		$this->elements[ $tag ][] = $r + $this->data_offset;
 	}
 
 	protected function tag_close( $parser, $tag ) {
@@ -68,8 +82,9 @@ class WXR_Indexer {
 			return;
 		}
 
-		$last_key                             = count( $this->elements[ $tag ] ) - 1;
-		$this->elements[ $tag ][ $last_key ] .= ':' . xml_get_current_byte_index( $this->parser );
+		$p = xml_get_current_byte_index( $this->parser );
+		$last_key = count( $this->elements[ $tag ] ) - 1;
+		$this->elements[ $tag ][ $last_key ] .= ':' . $p;
 	}
 
 }
