@@ -7,8 +7,7 @@
     },
     "autoload": {
       "classmap": [
-        "includes/",
-        "vendor/woocommerce/action-scheduler/classes"
+        "includes/"
       ]
     },
     "license": "GPL-3.0-or-later",
