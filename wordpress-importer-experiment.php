@@ -112,9 +112,27 @@ function setup_taxonomies() {
 	$admin = new Admin();
 	add_action( 'wp_ajax_wordpress_importer_progress', array( $admin, 'get_status' ) );
 
+	add_action( 'wp_ajax_wordpress_importer_run_jobs', array( $admin, 'run_jobs' ) );
+
 }
 
 add_action( 'admin_init', 'ImporterExperiment\setup_taxonomies' );
+function register_job_runner() {
+
+	add_action(
+		'wordpress_importer_experiment_run_job',
+		function( $type, $item_id ) {
+			$runner = new Job_Runner();
+			$job    = get_metadata_by_mid( 'term', $item_id );
+			$runner->run( $job );
+		},
+		10,
+		2
+	);
+
+}
+add_action( 'admin_init', 'ImporterExperiment\register_job_runner' );
+
 
 function enqueue_scripts() {
 	if ( isset( $_GET['page'] ) && 'importer-experiment' === $_GET['page'] ) {
@@ -125,3 +143,25 @@ function enqueue_scripts() {
 
 
 add_action( 'admin_init', 'ImporterExperiment\enqueue_scripts' );
+
+
+add_filter(
+	'action_scheduler_store_class',
+	function() {
+		return 'ActionScheduler_wpPostStore';
+	},
+	101,
+	1
+);
+
+add_filter(
+	'action_scheduler_logger_class',
+	function() {
+		return 'ActionScheduler_wpCommentLogger';
+	},
+	101,
+	1
+);
+
+// Load the ActionScheduler library
+require_once( plugin_dir_path( __FILE__ ) . '/vendor/woocommerce/action-scheduler/action-scheduler.php' );

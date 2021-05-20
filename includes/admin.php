@@ -2,12 +2,19 @@
 
 namespace ImporterExperiment;
 
+use ActionScheduler;
+use ActionScheduler_Store;
 
 class Admin {
 
 	const EXPORT_FILE_OPTION = 'importer_experiment_wxr_file';
 
 	const TAXONOMY = 'importer_experiment';
+
+	/**
+	 * @var WXR_Indexer
+	 */
+	protected $indexer;
 
 	public function run() {
 
@@ -59,6 +66,8 @@ class Admin {
 		$indexer = new WXR_Indexer();
 		$indexer->parse( $file );
 
+		$this->indexer = $indexer;
+
 		$terms = get_terms(
 			array(
 				'taxonomy'   => self::TAXONOMY,
@@ -81,26 +90,30 @@ class Admin {
 
 		$total_items = 0;
 
-		foreach ( $indexer->get_data( 'wp:author' ) as $item ) {
+		$total_items += $this->batch( 'wp:author', $term_id );
+		$total_items += $this->batch( 'wp:category', $term_id );
+		$total_items += $this->batch( 'item', $term_id );
 
-			$payload = array(
-				'objects' => $item,
-				'job'     => 'author',
-			);
+		update_term_meta( $term_id, 'total', $total_items );
+		update_term_meta( $term_id, 'processed', 0 );
 
-			$total_items++;
-			add_metadata( 'term', $term_id, 'job', $payload );
-		}
+		echo 'Memory: ' . round( memory_get_peak_usage() / 1024 / 1024, 2 ) . "MB\n";
 
-		$batch_size = 100;
+	}
+
+	protected function batch( $type, $term_id, $batch_size = 100 ) {
+
 		$batch      = array();
-		$item_count = $indexer->get_count( 'item' );
-		// todo: attachment post types need to be added later because they need to run after other post types
-		foreach ( $indexer->get_data( 'item' ) as $idx => $item ) {
+		$item_count = $this->indexer->get_count( 'item' );
+		$job_count  = 0;
+
+		foreach ( $this->indexer->get_data( $type ) as $idx => $item ) {
 			$batch[] = $item;
-			$total_items++;
+			$job_count++;
 			if ( $idx === $item_count - 1 || count( $batch ) === $batch_size ) {
-				add_term_meta(
+
+				// Store the objects to process as term meta
+				$meta_id = add_term_meta(
 					$term_id,
 					'job',
 					array(
@@ -108,20 +121,24 @@ class Admin {
 						'objects' => $batch,
 					)
 				);
+
+				$job_data = array(
+					'type'    => $type,
+					'meta_id' => $meta_id,
+				);
+
+				$this->create_job( $job_data );
+
 				$batch = array();
 			}
 		}
 
-		update_term_meta( $term_id, 'total', $total_items );
-		update_term_meta( $term_id, 'processed', 0 );
+		return $job_count;
+	}
 
-		echo 'Memory: ' . round( memory_get_peak_usage() / 1024 / 1024, 2 ) . "MB\n";
+	protected function create_job( $payload ) {
 
-		$runner = new Job_Runner();
-
-		// Schedule the next job to be executed.
-		$runner->schedule_next();
-
+		as_enqueue_async_action( 'wordpress_importer_experiment_run_job', $payload );
 	}
 
 	/**
@@ -159,6 +176,29 @@ class Admin {
 				'processed' => $processed,
 			)
 		);
+		exit();
+	}
+
+	public function run_jobs() {
+
+		// Set the store
+
+
+		apply_filters(
+			'action_scheduler_store_class',
+			function() {
+				return ActionScheduler_Store::DEFAULT_CLASS;
+			}
+		);
+
+		$processed_actions = ActionScheduler::runner()->run( 'ImporterExperiment' );
+
+		wp_send_json(
+			array(
+				'processed_actions' => $processed_actions,
+			)
+		);
+
 		exit();
 	}
 

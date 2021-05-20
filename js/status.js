@@ -4,15 +4,17 @@ jQuery( document ).ready(($) => {
 
 	// This runs the cron.
 	let run_cron = () => {
-		$.get('/wp-cron.php', function() {
 
+		let data = {
+			action: 'wordpress_importer_run_jobs'
+		};
+
+		$.post( ajaxurl, data).always(function() {
 			if( !import_completed ) {
-				setTimeout(run_cron, 100);
+				run_cron();
 			}
 		});
 	}
-
-	run_cron();
 
 	let get_status = () => {
 		let data = {
@@ -32,5 +34,6 @@ jQuery( document ).ready(($) => {
 	};
 	if ( $( 'div#importer-progress' ).length ) {
 		get_status();
+		run_cron();
 	}
 });
