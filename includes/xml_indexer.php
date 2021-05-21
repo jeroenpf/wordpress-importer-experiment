@@ -33,13 +33,15 @@ class WXR_Indexer {
 		if ( ! is_readable( $file ) ) {
 			exit;
 		}
-		$this->file = file_get_contents( $file );
+
 		$this->handle = fopen( $file, 'rb' );
 		$this->data_offset = 0;
+		$chunk_size = 4096;
 
 		while ( ! feof( $this->handle ) ) {
-			$data = fread( $this->handle, 4096 );
-			$this->data = substr( $this->data, 4096 ) . $data;
+			$data = fread( $this->handle, $chunk_size );
+			// Allow backtracking for finding the tag start beyond the 4k data piece.
+			$this->data = substr( $this->data, $chunk_size ) . $data;
 			xml_parse( $this->parser, $data, feof( $this->handle ) );
 			$this->data_offset += strlen( $data );
 		}
@@ -82,9 +84,8 @@ class WXR_Indexer {
 			return;
 		}
 
-		$p = xml_get_current_byte_index( $this->parser );
-		$last_key = count( $this->elements[ $tag ] ) - 1;
-		$this->elements[ $tag ][ $last_key ] .= ':' . $p;
+		$last_key                             = count( $this->elements[ $tag ] ) - 1;
+		$this->elements[ $tag ][ $last_key ] .= ':' . xml_get_current_byte_index( $this->parser );
 	}
 
 }
