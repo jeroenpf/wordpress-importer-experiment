@@ -31,6 +31,10 @@
 	font-weight:bold;
 }
 
+#importer-experiment-app .stage li:not(:last-child) {
+	padding-right: 3px;
+	border-right: 1px solid rgb(130, 130, 130);
+}
 
 #importer-experiment-app .status.hold {
 	color: #710000;

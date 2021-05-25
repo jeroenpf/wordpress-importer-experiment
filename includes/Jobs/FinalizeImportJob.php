@@ -2,12 +2,14 @@
 
 namespace ImporterExperiment\Jobs;
 
-use ImporterExperiment\Interfaces\Job;
+use ImporterExperiment\Abstracts\Job;
+use ImporterExperiment\ImportStage;
 
-class FinalizeImportJob implements Job {
-
+class FinalizeImportJob extends Job {
 
 	public function run( $job_meta ) {
-		// TODO: Implement run() method.
+
+		$this->importer->set_import_meta( 'status', ImportStage::STATUS_COMPLETED );
 	}
+
 }

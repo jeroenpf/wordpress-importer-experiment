@@ -2,7 +2,7 @@
 
 namespace ImporterExperiment\Jobs;
 
-use ImporterExperiment\Interfaces\Job;
+use ImporterExperiment\Abstracts\Job;
 
 /**
  * Class WXRImportJob
@@ -12,7 +12,7 @@ use ImporterExperiment\Interfaces\Job;
  *
  * @package ImporterExperiment\Jobs
  */
-class WXRImportJob implements Job {
+class WXRImportJob extends Job {
 
 	/**
 	 * @param $job_meta
@@ -22,7 +22,6 @@ class WXRImportJob implements Job {
 	 * @todo Error handling, checking if the meta exists, etc.
 	 */
 	public function run( $job_meta ) {
-		sleep(1);
 		$job_meta = get_metadata_by_mid( 'term', $job_meta['meta_id'] );
 
 		// Todo: Execute the job
@@ -33,10 +32,11 @@ class WXRImportJob implements Job {
 		if ( md5_file( $file ) !== $checksum ) {
 			return false;
 		}
-//		$state = get_term_meta( $term_id, 'state', true );
-//		if ( ! $state ) {
-//			$state = array();
-//		}
+
+		//      $state = get_term_meta( $term_id, 'state', true );
+		//      if ( ! $state ) {
+		//          $state = array();
+		//      }
 
 		$job_data                  = maybe_unserialize( $job_meta->meta_value );
 		$job_data['file']          = $file;

@@ -20,15 +20,16 @@ class JobRunner extends JobRunnerAbstract {
 		$stage     = null;
 		$stage_job = null;
 
+		$importer = Importer::instance();
+
 		if ( ! empty( $job_meta['stage_job'] ) ) {
-			$importer  = Importer::instance();
 			$stage_job = get_term_by( 'id', $job_meta['stage_job'], $importer::TAXONOMY );
 			$stage     = get_term_by( 'id', $stage_job->parent, $importer::TAXONOMY );
 			$stage     = new ImportStage( $stage );
 		}
 
 		/** @var Job $class */
-		$class = new $job_class();
+		$class = new $job_class( $importer );
 
 		$this->pre_execute( $stage_job, $stage );
 

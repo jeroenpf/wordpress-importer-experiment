@@ -7,7 +7,7 @@
 	</div>
 
 	<div id="importer-experiment-app">
-		<h3>Debug:</h3>
+		<h3><span class="dashicons dashicons-code-standards"></span> Debug:</h3>
 
 		<div v-if="debug">
 			<table class="import wp-list-table widefat fixed striped table-view-list">
@@ -19,16 +19,20 @@
 					<td>Checksum</td>
 					<td>{{ debug.import.meta.file_checksum }}</td>
 				</tr>
+				<tr>
+					<td>Status</td>
+					<td :class="['status', debug.import.meta.status]">{{ debug.import.meta.status }}</td>
+				</tr>
 			</table>
 
-			<h3>Stages:</h3>
+			<h3><span class="dashicons dashicons-menu-alt"></span> Stages:</h3>
 
 			<div class="stage" v-for="stage in debug.stages.children" :key="stage.id">
 
 				<ul class="header subsubsub">
-					<li class="name">{{ stage.name }} ({{ Object.keys(stage.children).length }})</li>
+					<li class="name"><span class="dashicons dashicons-category"></span> {{ stage.name }} ({{ Object.keys(stage.children).length }})</li>
 					<li :class="['status', stage.meta.status]">{{ stage.meta.status }}</li>
-					<li class="depends_on" v-if="stage.meta.state_depends_on"> {{ stage.meta.state_depends_on.join(", ") }}</li>
+					<li class="depends_on" v-if="stage.meta.state_depends_on"><strong>depends on:</strong> {{ Array.isArray(stage.meta.state_depends_on) ? stage.meta.state_depends_on.join(", ") : stage.meta.state_depends_on }}</li>
 				</ul>
 
 				<table class="wp-list-table widefat fixed striped table-view-list">
@@ -43,7 +47,7 @@
 						<template v-for="job in stage.children" >
 							<tr >
 								<td v-on:click="toggleArguments( job.id ) "> {{ job.name }} </td>
-								<td> {{ job.meta.job_class }} </td>
+								<td> <pre>{{ job.meta.job_class }}</pre> </td>
 								<td :class="['status', job.meta.status]"> {{ job.meta.status }} </td>
 							</tr>
 							<tr v-if="showJobArgumentsFor[job.id] === true">
