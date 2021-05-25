@@ -4,6 +4,7 @@ namespace ImporterExperiment;
 
 use ActionScheduler;
 use ActionScheduler_Store;
+use http\Client\Request;
 
 class Admin {
 
@@ -40,16 +41,13 @@ class Admin {
 
 		switch ( $action ) {
 
+			case 'settings':
+				echo 'Settings for the import (author mapping, etc)';
+				break;
+
 			case 'status':
-				if ( ! empty( $_FILES ) ) {
-					$this->upload();
-				}
-
-				// todo: we need to validate the WXR
-				// todo: we need to possibly deal with encoding issues
-
 				$file = get_attached_file( get_option( self::EXPORT_FILE_OPTION ) );
-				$this->importer->create_jobs_from_wxr( $file );
+				$this->importer->import_from_wxr( $file );
 
 				include __DIR__ . '/../partials/status.php';
 
@@ -63,6 +61,10 @@ class Admin {
 
 	}
 
+	/**
+	 *
+	 * @todo Error handling
+	 */
 	protected function upload() {
 		check_admin_referer( 'import-upload' );
 		$file = wp_import_handle_upload();
@@ -152,6 +154,17 @@ class Admin {
 			wp_enqueue_script( 'substack-index-js', plugins_url( '/js/status.js', $this->plugin_file ) );
 			wp_enqueue_style( 'substack-index-css', plugins_url( '/css/status.css', $this->plugin_file ) );
 		}
+
+		$this->register_upload();
+	}
+
+	protected function register_upload() {
+
+		if ( ! empty( $_FILES ) && 'upload' === $_GET['action'] && 'importer-experiment' === $_GET['page'] ) {
+			$this->upload();
+			wp_safe_redirect( add_query_arg( array( 'action' => 'status' ) ) );
+		}
+
 	}
 
 	public static function instance() {

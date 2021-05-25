@@ -22,7 +22,7 @@ class WXRImportJob implements Job {
 	 * @todo Error handling, checking if the meta exists, etc.
 	 */
 	public function run( $job_meta ) {
-
+		sleep(1);
 		$job_meta = get_metadata_by_mid( 'term', $job_meta['meta_id'] );
 
 		// Todo: Execute the job

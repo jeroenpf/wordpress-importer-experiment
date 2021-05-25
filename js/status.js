@@ -11,7 +11,7 @@ jQuery( document ).ready(($) => {
 
 		$.post( ajaxurl, data).always(function() {
 			if( !import_completed ) {
-				run_cron();
+				setTimeout(run_cron, 1500);
 			}
 		});
 	}
@@ -33,7 +33,7 @@ jQuery( document ).ready(($) => {
 		});
 	};
 	if ( $( 'div#importer-progress' ).length ) {
-		get_status();
+	//	get_status();
 		run_cron();
 	}
 });
