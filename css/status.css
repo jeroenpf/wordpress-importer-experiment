@@ -18,3 +18,36 @@
 
 	transition: width 500ms ease-in-out;
 }
+
+#importer-experiment-app .stage {
+	margin: 10px 0;
+}
+
+#importer-experiment-app .stage ul {
+	margin-bottom:10px;
+}
+
+#importer-experiment-app .stage li.name {
+	font-weight:bold;
+}
+
+
+#importer-experiment-app .status.hold {
+	color: #710000;
+}
+
+#importer-experiment-app .status.completed {
+	color: #008400;
+}
+
+#importer-experiment-app .status.running {
+	color: #012c86;
+}
+
+#importer-experiment-app .status.pending {
+	color: #f34300;
+}
+
+#importer-experiment-app .status.scheduled {
+	color: #6a00b8;
+}

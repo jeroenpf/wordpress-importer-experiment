@@ -29,11 +29,48 @@ jQuery( document ).ready(($) => {
 				return;
 			}
 
-			setTimeout(get_status, 1000);
+			setTimeout(get_status, 2000);
 		});
 	};
 	if ( $( 'div#importer-progress' ).length ) {
-	//	get_status();
+		get_status();
 		run_cron();
 	}
+
+
+	var VueApp = new Vue({
+
+		el: "#importer-experiment-app",
+		data: () => {
+			return {
+				message: 'Hello this is working...',
+				debug: null,
+				showJobArgumentsFor: []
+			}
+		},
+		methods: {
+			get_debug: function() {
+				let obj = this;
+				$.post( ajaxurl, { action: 'wordpress_importer_get_debug' })
+					.done( (response) => {
+
+						obj.debug = response;
+						setTimeout(obj.get_debug, 1000);
+					});
+			},
+			toggleArguments: function( job ) {
+
+				if(this.showJobArgumentsFor[job] === undefined) {
+					this.showJobArgumentsFor[job] = false;
+				}
+
+				this.showJobArgumentsFor[job] = !this.showJobArgumentsFor[job];
+			}
+		},
+		created: function() {
+			this.get_debug();
+		}
+
+	});
+
 });

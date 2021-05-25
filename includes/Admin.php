@@ -144,15 +144,67 @@ class Admin {
 		);
 	}
 
+	public function get_debug() {
+
+		wp_send_json( $this->get_terms_tree() );
+
+		exit();
+	}
+
+	protected function get_terms_tree( $parent = 0 ) {
+
+		$terms = get_terms(
+			array(
+				'hide_empty' => false,
+				'taxonomy'   => Importer::TAXONOMY,
+				'parent'     => $parent,
+				'orderby'    => 'term_id',
+			)
+		);
+
+		$out = array();
+
+		foreach ( $terms as $term ) {
+			$out[ $term->slug ] = array(
+				'meta'     => $this->parse_term_meta( get_term_meta( $term->term_id, '', true ) ),
+				'children' => $this->get_terms_tree( $term->term_id ),
+				'name'     => $term->name,
+				'id'       => $term->term_id,
+			);
+		}
+
+		return $out;
+
+	}
+
+	protected function parse_term_meta( $metas ) {
+
+		$out = array();
+
+		foreach ( $metas as $key => $meta ) {
+
+			$values = array();
+			foreach ( $meta as $value ) {
+				$values[] = maybe_unserialize( $value );
+			}
+
+			$out[ $key ] = 1 === count( $values ) ? $values[0] : $values;
+
+		}
+
+		return $out;
+	}
+
 	public function setup_admin() {
 
 		add_action( 'wp_ajax_wordpress_importer_progress', array( $this, 'get_status' ) );
-
 		add_action( 'wp_ajax_wordpress_importer_run_jobs', array( $this, 'run_jobs' ) );
+		add_action( 'wp_ajax_wordpress_importer_get_debug', array( $this, 'get_debug' ) );
 
 		if ( isset( $_GET['page'] ) && 'importer-experiment' === $_GET['page'] ) {
 			wp_enqueue_script( 'substack-index-js', plugins_url( '/js/status.js', $this->plugin_file ) );
 			wp_enqueue_style( 'substack-index-css', plugins_url( '/css/status.css', $this->plugin_file ) );
+			wp_enqueue_script( 'vue', 'https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js' );
 		}
 
 		$this->register_upload();
