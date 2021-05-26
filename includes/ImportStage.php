@@ -195,6 +195,11 @@ class ImportStage {
 			return;
 		}
 
+		if ( ! $this->has_jobs() ) {
+			$this->complete();
+			return;
+		}
+
 		$jobs      = get_terms(
 			array(
 				'hide_empty' => false,
@@ -218,6 +223,21 @@ class ImportStage {
 			$scheduler->schedule( $runner->get_hook_name(), $class, $args );
 		}
 
+	}
+
+	/**
+	 * Does the stage have jobs?
+	 *
+	 * @return bool
+	 */
+	public function has_jobs() {
+		return wp_count_terms(
+			array(
+				'taxonomy'   => $this->taxonomy,
+				'parent'     => $this->get_id(),
+				'hide_empty' => false,
+			)
+		) > 0;
 	}
 
 
