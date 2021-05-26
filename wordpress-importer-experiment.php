@@ -13,14 +13,9 @@
 
 namespace ImporterExperiment;
 
-
 defined( 'ABSPATH' ) || exit;
 
 require __DIR__ . '/vendor/autoload.php';
-
-require_once __DIR__ . '/importers/partial-xml-importer.php';
-require_once __DIR__ . '/importers/author.php';
-require_once __DIR__ . '/importers/post.php';
 
 add_filter(
 	'upload_size_limit',

@@ -3,6 +3,13 @@
 namespace ImporterExperiment\Jobs;
 
 use ImporterExperiment\Abstracts\Job;
+use ImporterExperiment\Exception;
+use ImporterExperiment\Interfaces\PartialImport;
+use ImporterExperiment\PartialImporters\Author;
+use ImporterExperiment\PartialImporters\Category;
+use ImporterExperiment\PartialImporters\Post;
+use ImporterExperiment\PartialImporters\Tag;
+use ImporterExperiment\PartialImporters\Term;
 
 /**
  * Class WXRImportJob
@@ -14,6 +21,18 @@ use ImporterExperiment\Abstracts\Job;
  */
 class WXRImportJob extends Job {
 
+
+	/**
+	 * @var string[] A list of partial importer classnames.
+	 */
+	protected $default_partial_importers = array(
+		'post'     => Post::class,
+		'author'   => Author::class,
+		'category' => Category::class,
+		'term'     => Term::class,
+		'tag'      => Tag::class,
+	);
+
 	/**
 	 * @param $job_meta
 	 *
@@ -22,34 +41,32 @@ class WXRImportJob extends Job {
 	 * @todo Error handling, checking if the meta exists, etc.
 	 */
 	public function run( $job_meta ) {
-		$job_meta = get_metadata_by_mid( 'term', $job_meta['meta_id'] );
 
-		// Todo: Execute the job
-		$term_id  = (int) $job_meta->term_id;
-		$file     = get_term_meta( $term_id, 'file', true );
-		$checksum = get_term_meta( $term_id, 'file_checksum', true );
+		$job_meta = get_term_meta( $job_meta['stage_job'], 'job_arguments', true );
+
+		$file     = $this->importer->get_import_meta( 'file' );
+		$checksum = $this->importer->get_import_meta( 'file_checksum' );
 
 		if ( md5_file( $file ) !== $checksum ) {
 			return false;
 		}
 
-		//      $state = get_term_meta( $term_id, 'state', true );
-		//      if ( ! $state ) {
-		//          $state = array();
-		//      }
+		$importer = $job_meta['importer'];
 
-		$job_data                  = maybe_unserialize( $job_meta->meta_value );
-		$job_data['file']          = $file;
-		$job_data['file_checksum'] = $checksum;
+		if ( ! isset( $this->default_partial_importers[ $importer ] ) ) {
+			throw new Exception( sprintf( __( 'Partial importer of type %s not implemented.' ), $importer ) );
+		}
 
-		//$state = apply_filters( 'wordpress_importer_job_' . $job_data['importer'], $state, $job_data );
-		//update_term_meta( $term_id, 'state', $state );
+		$partial_importer_class = apply_filters( 'wordpress_importer_' . $importer . '_class', $this->default_partial_importers[ $importer ] );
 
-		// Delete the job (meta)
-		delete_metadata_by_mid( 'term', $job_meta->meta_id );
+		foreach ( (array) $job_meta['objects'] as $object ) {
+			/** @var PartialImport $partial_importer */
+			$partial_importer = new $partial_importer_class( $this->importer );
+			$partial_importer->run( $object );
+		}
 
-		$processed = get_term_meta( $term_id, 'processed', true ) ?: 0;
-		update_term_meta( $term_id, 'processed', $processed + count( $job_data['objects'] ) );
+		//      $processed = get_term_meta( $term_id, 'processed', true ) ?: 0;
+		//      update_term_meta( $term_id, 'processed', $processed + count( $job_data['objects'] ) );
 	}
 
 }

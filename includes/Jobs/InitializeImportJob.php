@@ -64,11 +64,15 @@ class InitializeImportJob extends Job {
 			'terms'      => array(
 				'type'       => 'wp:term',
 				'depends_on' => 'initialization',
+			),
+			'tags'       => array(
+				'type'       => 'wp:tag',
+				'depends_on' => 'initialization',
 
 			),
 			'posts'      => array(
 				'type'       => 'item',
-				'depends_on' => array( 'initialization', 'authors', 'categories', 'terms' ),
+				'depends_on' => array( 'initialization', 'authors', 'categories', 'terms', 'tags' ),
 			),
 		);
 

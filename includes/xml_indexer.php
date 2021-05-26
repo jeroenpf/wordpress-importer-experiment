@@ -17,7 +17,7 @@ class WXR_Indexer {
 	protected $data = '';
 	protected $data_offset = 0;
 
-	protected $allowed_tags = array( 'item', 'wp:category', 'wp:author', 'wp:term' );
+	protected $allowed_tags = array( 'item', 'wp:category', 'wp:author', 'wp:term', 'wp:tag' );
 
 	public function __construct() {
 
