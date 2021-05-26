@@ -14,7 +14,7 @@ class WXR_Indexer {
 
 	protected $handle;
 
-	protected $data = '';
+	protected $data        = '';
 	protected $data_offset = 0;
 
 	protected $allowed_tags = array( 'item', 'wp:category', 'wp:author', 'wp:term', 'wp:tag' );
@@ -31,19 +31,16 @@ class WXR_Indexer {
 
 	public function parse( $file ) {
 		if ( ! is_readable( $file ) ) {
-			exit;
+			throw new Exception( 'WXR file does not exist' );
 		}
 
-		$this->handle = fopen( $file, 'rb' );
+		$this->handle      = fopen( $file, 'rb' );
 		$this->data_offset = 0;
-		$chunk_size = 4096;
+		$chunk_size        = 4096;
 
 		while ( ! feof( $this->handle ) ) {
 			$data = fread( $this->handle, $chunk_size );
-			// Allow backtracking for finding the tag start beyond the 4k data piece.
-			$this->data = substr( $this->data, $chunk_size ) . $data;
 			xml_parse( $this->parser, $data, feof( $this->handle ) );
-			$this->data_offset += strlen( $data );
 		}
 
 	}
@@ -70,12 +67,31 @@ class WXR_Indexer {
 		if ( ! in_array( $tag, $this->allowed_tags, true ) ) {
 			return;
 		}
+
 		$p = xml_get_current_byte_index( $this->parser );
 
-		// Backtrack to find the real tag start.
-		$r = strrpos( $this->data, '<' . $tag, - ( strlen( $this->data ) - ( $p - $this->data_offset ) ) );
+		// Get the byte position of the tag start of the tag.
+		$current_pointer = ftell( $this->handle );
+		$search          = '<' . $tag;
+		$start           = $this->get_tag_start_byte( $p - mb_strlen( $search ), $search );
 
-		$this->elements[ $tag ][] = $r + $this->data_offset;
+		// Set the file pointer back to where it was before we backtracked.
+		fseek( $this->handle, $current_pointer );
+
+		$this->elements[ $tag ][] = $start;
+	}
+
+	protected function get_tag_start_byte( $start_byte, $tag ) {
+
+		$str_len = mb_strlen( $tag );
+
+		fseek( $this->handle, $start_byte );
+		$chunk = fread( $this->handle, $str_len );
+
+		return $chunk === $tag
+			? $start_byte
+			: $this->get_tag_start_byte( $start_byte - 1, $tag );
+
 	}
 
 	protected function tag_close( $parser, $tag ) {

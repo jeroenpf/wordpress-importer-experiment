@@ -86,7 +86,10 @@ abstract class PartialXMLImport implements PartialImport {
 		}
 
 		if ( ! $success || isset( $dom->doctype ) ) {
-			throw new Exception( __( 'There was an error when reading this WXR file', 'wordpress-importer' ) );
+
+			echo $data;
+
+			throw new Exception( libxml_get_last_error()->message );
 		}
 
 		$xml              = simplexml_import_dom( $dom );
