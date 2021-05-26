@@ -207,11 +207,6 @@ class ImportStage {
 		$scheduler = Scheduler::instance();
 		$runner    = JobRunner::instance();
 
-		// If the stage has no jobs, complete it.
-		if ( ! count( $jobs ) ) {
-			$this->complete();
-		}
-
 		foreach ( $jobs as $job ) {
 
 			$class = get_term_meta( $job->term_id, 'job_class', true );
