@@ -37,7 +37,7 @@ class WXR_Indexer {
 		'wp:category',
 		'wp:author',
 		'wp:term',
-		'wp:tag',
+		'wp:tag'
 	);
 
 	public function __construct() {

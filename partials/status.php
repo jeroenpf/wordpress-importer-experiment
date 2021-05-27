@@ -30,7 +30,7 @@
 			<div class="stage" v-for="stage in debug.stages.children" :key="stage.id">
 
 				<ul class="header subsubsub">
-					<li class="name"><span class="dashicons dashicons-category"></span> {{ stage.name }} ({{ Object.keys(stage.children).length }})</li>
+					<li class="name"><span class="dashicons dashicons-category"></span> {{ stage.name }} ({{ Object.keys(stage.children).length }} / {{ completed_count(stage.name) }})</li>
 					<li :class="['status', stage.meta.status]">{{ stage.meta.status }}</li>
 					<li class="depends_on" v-if="stage.meta.state_depends_on"><strong>depends on:</strong> {{ Array.isArray(stage.meta.state_depends_on) ? stage.meta.state_depends_on.join(", ") : stage.meta.state_depends_on }}</li>
 				</ul>

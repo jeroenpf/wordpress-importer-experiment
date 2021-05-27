@@ -67,10 +67,17 @@ class Admin {
 
 		// Get authors
 		$indexer = new WXR_Indexer();
-		$indexer->parse( $wxr_file, array( 'wp:author', 'wp:wxr_version' ) );
+		$indexer->parse( $wxr_file, array( 'wp:author', 'wp:wxr_version', 'wp:base_site_url', 'wp:base_blog_url' ) );
 
-		$authors     = $this->get_authors_from_wxr( $indexer );
-		$wxr_version = $this->get_wxr_version( $indexer );
+		$authors       = $this->get_authors_from_wxr( $indexer );
+		$wxr_version   = $this->get_wxr_meta( 'wp:wxr_version', $indexer, $wxr_file );
+		$base_url      = $this->get_wxr_meta( 'wp:base_site_url', $indexer, $wxr_file );
+		$base_blog_url = $this->get_wxr_meta( 'wp:base_blog_url', $indexer, $wxr_file );
+
+		$base_url = $base_url ?: '';
+		$this->importer->set_import_meta( 'wxr_version', $wxr_version );
+		$this->importer->set_import_meta( 'base_site_url', $base_url );
+		$this->importer->set_import_meta( 'base_blog_url', $base_blog_url ?: $base_url );
 
 		$can_fetch_attachments = $this->allow_fetch_attachments();
 		$can_create_users      = $this->allow_create_users();
@@ -92,11 +99,13 @@ class Admin {
 		return $authors;
 	}
 
-	protected function get_wxr_version( WXR_Indexer $indexer ) {
-		$wxr_version  = $indexer->get_data( 'wp:wxr_version' )->current();
-		$wxr_importer = new WXRVersion( $this->importer );
-		$wxr_importer->process( $wxr_version );
-		return $wxr_importer->get_data()['version'];
+	protected function get_wxr_meta( $tag, WXR_Indexer $indexer, $wxr_file ) {
+
+		$object         = $indexer->get_data( $tag )->current();
+		$partial_reader = new PartialXMLReader();
+		$xml            = $partial_reader->object_to_simplexml( $object, $wxr_file );
+		$meta           = $xml->xpath( sprintf( '/rss/channel/%s', $tag ) );
+		return isset( $meta[0] ) ? (string) $meta[0] : null;
 	}
 
 	/**
@@ -110,9 +119,9 @@ class Admin {
 		}
 
 		$indexer = new WXR_Indexer();
-		$indexer->parse( $this->importer->get_import_meta( 'file' ), array( 'wp:author', 'wp:wxr_version' ) );
+		$indexer->parse( $this->importer->get_import_meta( 'file' ), array( 'wp:author' ) );
 		$authors           = $this->get_authors_from_wxr( $indexer );
-		$wxr_version       = $this->get_wxr_version( $indexer );
+		$wxr_version       = $this->importer->get_import_meta( 'wxr_version' );
 		$create_users      = $this->allow_create_users();
 		$author_mapping    = array();
 		$processed_authors = array();
@@ -168,13 +177,8 @@ class Admin {
 			}
 		}
 
-		foreach ( $author_mapping as $wxr => $new ) {
-			$this->importer->set_mapping( 'author', $wxr, $new );
-		}
-
-		foreach ( $processed_authors as $wxr => $new ) {
-			$this->importer->set_mapping( 'processed_author', $wxr, $new );
-		}
+		$this->importer->set_import_meta( 'author_mapping', $author_mapping );
+		$this->importer->set_import_meta( 'processed_authors', $processed_authors );
 
 	}
 
@@ -251,6 +255,7 @@ class Admin {
 
 	public function run_jobs() {
 
+		set_time_limit(0);
 		// Set the store
 
 		apply_filters(

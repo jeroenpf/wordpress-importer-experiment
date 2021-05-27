@@ -33,7 +33,8 @@ jQuery( document ).ready(($) => {
 		});
 	};
 	if ( $( 'div#importer-progress' ).length ) {
-		get_status();
+		//get_status();
+		run_cron();
 		run_cron();
 	}
 
@@ -65,6 +66,15 @@ jQuery( document ).ready(($) => {
 				}
 
 				this.showJobArgumentsFor[job] = !this.showJobArgumentsFor[job];
+			},
+			completed_count: function( stage ) {
+
+				let jobs = this.debug.stages.children[stage].children;
+
+				return Object.keys(jobs)
+					.filter( (k) => {
+						return jobs[k].meta.status === 'completed';
+					}).length;
 			}
 		},
 		created: function() {

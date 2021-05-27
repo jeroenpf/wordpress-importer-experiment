@@ -33,7 +33,7 @@ class JobRunner extends JobRunnerAbstract {
 
 		$this->pre_execute( $stage_job, $stage );
 
-		$class->run( $job_meta );
+		$class->run( $job_meta, $stage );
 
 		$this->post_execute( $stage_job, $stage );
 

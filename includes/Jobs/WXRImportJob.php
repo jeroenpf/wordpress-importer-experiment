@@ -4,6 +4,7 @@ namespace ImporterExperiment\Jobs;
 
 use ImporterExperiment\Abstracts\Job;
 use ImporterExperiment\Exception;
+use ImporterExperiment\ImportStage;
 use ImporterExperiment\Interfaces\PartialImport;
 use ImporterExperiment\PartialImporters\Author;
 use ImporterExperiment\PartialImporters\Category;
@@ -22,6 +23,8 @@ use ImporterExperiment\PartialImporters\Term;
 class WXRImportJob extends Job {
 
 
+	const MAX_OBJECTS_PER_JOB = 15;
+
 	/**
 	 * @var string[] A list of partial importer classnames.
 	 */
@@ -35,12 +38,14 @@ class WXRImportJob extends Job {
 
 	/**
 	 * @param $job_meta
+	 * @param ImportStage|null $stage
 	 *
 	 * @return false
 	 *
+	 * @throws \Exception
 	 * @todo Error handling, checking if the meta exists, etc.
 	 */
-	public function run( $job_meta ) {
+	public function run( $job_meta, ImportStage $stage = null ) {
 
 		$job_meta = get_term_meta( $job_meta['stage_job'], 'job_arguments', true );
 
@@ -59,7 +64,15 @@ class WXRImportJob extends Job {
 
 		$partial_importer_class = apply_filters( 'wordpress_importer_' . $importer . '_class', $this->default_partial_importers[ $importer ] );
 
-		foreach ( (array) $job_meta['objects'] as $object ) {
+		// To prevent timeout, large object batches will be split into new jobs.
+		$objects = $job_meta['objects'];
+
+		if ( count( $objects ) > self::MAX_OBJECTS_PER_JOB ) {
+			$objects = array_splice( $job_meta['objects'], -self::MAX_OBJECTS_PER_JOB );
+			$this->split_into_smaller_batches( $job_meta, $stage );
+		}
+
+		foreach ( $objects as $object ) {
 			/** @var PartialImport $partial_importer */
 			$partial_importer = new $partial_importer_class( $this->importer );
 			$partial_importer->process( $object );
@@ -68,6 +81,24 @@ class WXRImportJob extends Job {
 
 		//      $processed = get_term_meta( $term_id, 'processed', true ) ?: 0;
 		//      update_term_meta( $term_id, 'processed', $processed + count( $job_data['objects'] ) );
+	}
+
+	/**
+	 * If there are more than MAX_OBJECTS_PER_JOB objects, the total execution time of the
+	 * batch will be too long and the batch needs to be split into smaller batches.
+	 *
+	 * @param $job_meta
+	 * @param $stage
+	 */
+	protected function split_into_smaller_batches( $job_meta, $stage ) {
+
+		$objects = $job_meta['objects'];
+
+		while ( count( $objects ) ) {
+			$job_meta['objects'] = array_splice( $objects, -self::MAX_OBJECTS_PER_JOB );
+			$stage->add_job( static::class, $job_meta );
+		}
+
 	}
 
 }

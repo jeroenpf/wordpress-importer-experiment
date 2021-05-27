@@ -32,7 +32,7 @@ class InitializeImportJob extends Job {
 
 	const WXR_JOB_CLASS = WXRImportJob::class;
 
-	public function run( $job_meta ) {
+	public function run( $job_meta, ImportStage $stage = null ) {
 		// Get the WXR file path
 
 		$this->importer->set_import_meta( 'status', ImportStage::STATUS_RUNNING );
@@ -90,11 +90,13 @@ class InitializeImportJob extends Job {
 		return $total_objects;
 	}
 
-	protected function batch( $type, ImportStage $stage, $batch_size = 100 ) {
+	protected function batch( $type, ImportStage $stage, $max_batches = 250 ) {
 
 		$batch      = array();
 		$item_count = $this->indexer->get_count( $type );
 		$job_count  = 0;
+
+		$batch_size = ceil( $item_count / $max_batches );
 
 		foreach ( $this->indexer->get_data( $type ) as $idx => $item ) {
 			$batch[] = $item;

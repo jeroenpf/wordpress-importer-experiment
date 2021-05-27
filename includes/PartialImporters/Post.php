@@ -4,6 +4,8 @@ namespace ImporterExperiment\PartialImporters;
 
 use ImporterExperiment\Abstracts\PartialXMLImport;
 use SimpleXMLElement;
+use WP_Error;
+use WP_Query;
 
 class Post extends PartialXMLImport {
 
@@ -45,7 +47,7 @@ class Post extends PartialXMLImport {
 			return;
 		}
 
-		$processed_post = $this->importer->get_mapped_id( 'processed_post', $post['post_id'] );
+		$processed_post = $this->get_post_id_by_wxr_id( $post['post_id'] );
 
 		if ( $processed_post ) {
 			return;
@@ -82,21 +84,15 @@ class Post extends PartialXMLImport {
 			printf( __( '%s &#8220;%s&#8221; already exists.', 'wordpress-importer' ), $post_type_object->labels->singular_name, esc_html( $post['post_title'] ) );
 			echo '<br />';
 			$comment_post_ID = $post_id = $post_exists;
-			$this->importer->set_mapping( 'processed_post', (int) $post['post_id'], (int) $post_exists );
+			$this->set_post_wxr_id( (int) $post_exists, (int) $post['post_id'] );
 		} else {
 			$post_parent = (int) $post['post_parent'];
+			$is_orphaned = false;
+
 			if ( $post_parent ) {
-
-				$processed_parent = $this->importer->get_mapped_id( 'processed_post', $post_parent );
-
-				// if we already know the parent, map it to the new local ID
-				if ( $processed_parent ) {
-					$post_parent = $processed_parent;
-					// otherwise record the parent for later
-				} else {
-					$this->post_orphans[ (int) $post['post_id'] ] = $post_parent;
-					$post_parent                                  = 0;
-				}
+				$processed_parent = $this->get_post_id_by_wxr_id( $post_parent );
+				$post_parent      = $processed_parent ?: 0;
+				$is_orphaned      = null === $processed_parent;
 			}
 
 			// map the post author
@@ -131,24 +127,8 @@ class Post extends PartialXMLImport {
 
 			$postdata = wp_slash( $postdata );
 
-			if ( 'attachment' == $postdata['post_type'] ) {
-				$remote_url = ! empty( $post['attachment_url'] ) ? $post['attachment_url'] : $post['guid'];
-
-				// try to use _wp_attached file for upload folder placement to ensure the same location as the export site
-				// e.g. location is 2003/05/image.jpg but the attachment post_date is 2010/09, see media_handle_upload()
-				$postdata['upload_date'] = $post['post_date'];
-				if ( isset( $post['postmeta'] ) ) {
-					foreach ( $post['postmeta'] as $meta ) {
-						if ( $meta['key'] == '_wp_attached_file' ) {
-							if ( preg_match( '%^[0-9]{4}/[0-9]{2}%', $meta['value'], $matches ) ) {
-								$postdata['upload_date'] = $matches[0];
-							}
-							break;
-						}
-					}
-				}
-
-				$comment_post_ID = $post_id = $this->process_attachment( $postdata, $remote_url );
+			if ( 'attachment' === $postdata['post_type'] ) {
+				$comment_post_ID = $post_id = $this->handle_attachment( $postdata, $post );
 			} else {
 				$comment_post_ID = $post_id = wp_insert_post( $postdata, true );
 				do_action( 'wp_import_insert_post', $post_id, $original_post_ID, $postdata, $post );
@@ -172,8 +152,14 @@ class Post extends PartialXMLImport {
 			}
 		}
 
+		// Set the post to orphaned if a post with the $parent_id was not found.
+		// Orphaned posts will be fixed later.
+		if ( $is_orphaned ) {
+			$this->set_post_orphaned( $post_id, $post_parent );
+		}
+
 		// map pre-import ID to local ID
-		$this->processed_posts[ (int) $post['post_id'] ] = (int) $post_id;
+		$this->set_post_wxr_id( (int) $post_id, (int) $post['post_id'] );
 
 		if ( ! isset( $post['terms'] ) ) {
 			$post['terms'] = array();
@@ -204,7 +190,7 @@ class Post extends PartialXMLImport {
 						continue;
 					}
 				}
-				$terms_to_set[ $taxonomy ][] = intval( $term_id );
+				$terms_to_set[ $taxonomy ][] = (int) $term_id;
 			}
 
 			foreach ( $terms_to_set as $tax => $ids ) {
@@ -303,15 +289,272 @@ class Post extends PartialXMLImport {
 
 					// if the post has a featured image, take note of this in case of remap
 					if ( '_thumbnail_id' === $key ) {
-						$this->featured_images[ $post_id ] = (int) $value;
+						add_post_meta( $post_id, 'featured_image_wxr_id', (int) $value );
 					}
 				}
 			}
 		}
 	}
 
-	protected function add_remap_featured_image( $post_id, $value ) {
+	protected function handle_attachment( $postdata, $post ) {
+		$remote_url = ! empty( $post['attachment_url'] ) ? $post['attachment_url'] : $post['guid'];
 
+		// try to use _wp_attached file for upload folder placement to ensure the same location as the export site
+		// e.g. location is 2003/05/image.jpg but the attachment post_date is 2010/09, see media_handle_upload()
+		$postdata['upload_date'] = $post['post_date'];
+		$postmeta                = isset( $post['postmeta'] ) ? $post['postmeta'] : array();
+
+		foreach ( $postmeta as $meta ) {
+			$data_regex = '%^[0-9]{4}/[0-9]{2}%';
+			if ( '_wp_attached_file' === $meta['key'] && preg_match( $data_regex, $meta['value'], $matches ) ) {
+				$postdata['upload_date'] = $matches[0];
+				break;
+			}
+		}
+
+		return $this->process_attachment( $postdata, $remote_url );
+	}
+
+	/**
+	 * @todo Implement fetch attachment option
+	 *
+	 * @param $post
+	 * @param $remote_url
+	 *
+	 * @return array|int|WP_Error
+	 */
+	protected function process_attachment( $post, $url ) {
+		//      if ( ! $this->fetch_attachments ) {
+		//          return new WP_Error(
+		//              'attachment_processing_error',
+		//              __( 'Fetching attachments is not enabled', 'wordpress-importer' )
+		//          );
+		//      }
+
+		$base_url = $this->importer->get_import_meta( 'base_site_url' );
+
+		// if the URL is absolute, but does not contain address, then upload it assuming base_site_url
+		if ( preg_match( '|^/[\w\W]+$|', $url ) ) {
+			$url = rtrim( $base_url, '/' ) . $url;
+		}
+
+		$upload = $this->fetch_remote_file( $url, $post );
+		if ( is_wp_error( $upload ) ) {
+			return $upload;
+		}
+
+		$info = wp_check_filetype( $upload['file'] );
+		if ( $info ) {
+			$post['post_mime_type'] = $info['type'];
+		} else {
+			return new WP_Error( 'attachment_processing_error', __( 'Invalid file type', 'wordpress-importer' ) );
+		}
+
+		$post['guid'] = $upload['url'];
+
+		// as per wp-admin/includes/upload.php
+		$post_id = wp_insert_attachment( $post, $upload['file'] );
+		wp_update_attachment_metadata( $post_id, wp_generate_attachment_metadata( $post_id, $upload['file'] ) );
+
+		// remap resized image URLs, works by stripping the extension and remapping the URL stub.
+		if ( preg_match( '!^image/!', $info['type'] ) ) {
+			$parts = pathinfo( $url );
+			$name  = basename( $parts['basename'], ".{$parts['extension']}" ); // PATHINFO_FILENAME in PHP 5.2
+
+			// Set the url mapping that will be used later to convert old urls to new attachement urls.
+			$this->set_url_mapping( $post_id, $parts['dirname'] . '/' . $name );
+		}
+
+		return $post_id;
+	}
+
+	/**
+	 * Attempt to download a remote file attachment
+	 *
+	 * @param string $url URL of item to fetch
+	 * @param array $post Attachment details
+	 * @return array|WP_Error Local file location details on success, WP_Error otherwise
+	 */
+	function fetch_remote_file( $url, $post ) {
+		// Extract the file name from the URL.
+		$file_name = basename( parse_url( $url, PHP_URL_PATH ) );
+
+		if ( ! $file_name ) {
+			$file_name = md5( $url );
+		}
+
+		$tmp_file_name = wp_tempnam( $file_name );
+		if ( ! $tmp_file_name ) {
+			return new WP_Error( 'import_no_file', __( 'Could not create temporary file.', 'wordpress-importer' ) );
+		}
+
+		// Fetch the remote URL and write it to the placeholder file.
+		$remote_response = wp_safe_remote_get(
+			$url,
+			array(
+				'timeout'  => 300,
+				'stream'   => true,
+				'filename' => $tmp_file_name,
+				'headers'  => array(
+					'Accept-Encoding' => 'identity',
+				),
+			)
+		);
+
+		if ( is_wp_error( $remote_response ) ) {
+			@unlink( $tmp_file_name );
+			return new WP_Error(
+				'import_file_error',
+				sprintf(
+				/* translators: 1: The WordPress error message. 2: The WordPress error code. */
+					__( 'Request failed due to an error: %1$s (%2$s)', 'wordpress-importer' ),
+					esc_html( $remote_response->get_error_message() ),
+					esc_html( $remote_response->get_error_code() )
+				)
+			);
+		}
+
+		$remote_response_code = (int) wp_remote_retrieve_response_code( $remote_response );
+
+		// Make sure the fetch was successful.
+		if ( 200 !== $remote_response_code ) {
+			@unlink( $tmp_file_name );
+			return new WP_Error(
+				'import_file_error',
+				sprintf(
+				/* translators: 1: The HTTP error message. 2: The HTTP error code. */
+					__( 'Remote server returned the following unexpected result: %1$s (%2$s)', 'wordpress-importer' ),
+					get_status_header_desc( $remote_response_code ),
+					esc_html( $remote_response_code )
+				)
+			);
+		}
+
+		$headers = wp_remote_retrieve_headers( $remote_response );
+
+		// Request failed.
+		if ( ! $headers ) {
+			@unlink( $tmp_file_name );
+			return new WP_Error( 'import_file_error', __( 'Remote server did not respond', 'wordpress-importer' ) );
+		}
+
+		$filesize = (int) filesize( $tmp_file_name );
+
+		if ( 0 === $filesize ) {
+			@unlink( $tmp_file_name );
+			return new WP_Error( 'import_file_error', __( 'Zero size file downloaded', 'wordpress-importer' ) );
+		}
+
+		if ( ! isset( $headers['content-encoding'] ) && isset( $headers['content-length'] ) && $filesize !== (int) $headers['content-length'] ) {
+			@unlink( $tmp_file_name );
+			return new WP_Error( 'import_file_error', __( 'Downloaded file has incorrect size', 'wordpress-importer' ) );
+		}
+
+		$max_size = (int) $this->max_attachment_size();
+		if ( ! empty( $max_size ) && $filesize > $max_size ) {
+			@unlink( $tmp_file_name );
+			return new WP_Error( 'import_file_error', sprintf( __( 'Remote file is too large, limit is %s', 'wordpress-importer' ), size_format( $max_size ) ) );
+		}
+
+		// Override file name with Content-Disposition header value.
+		if ( ! empty( $headers['content-disposition'] ) ) {
+			$file_name_from_disposition = $this->get_filename_from_disposition( (array) $headers['content-disposition'] );
+			if ( $file_name_from_disposition ) {
+				$file_name = $file_name_from_disposition;
+			}
+		}
+
+		// Set file extension if missing.
+		$file_ext = pathinfo( $file_name, PATHINFO_EXTENSION );
+		if ( ! $file_ext && ! empty( $headers['content-type'] ) ) {
+			$extension = $this->get_file_extension_by_mime_type( $headers['content-type'] );
+			if ( $extension ) {
+				$file_name = "{$file_name}.{$extension}";
+			}
+		}
+
+		// Handle the upload like _wp_handle_upload() does.
+		$wp_filetype     = wp_check_filetype_and_ext( $tmp_file_name, $file_name );
+		$ext             = empty( $wp_filetype['ext'] ) ? '' : $wp_filetype['ext'];
+		$type            = empty( $wp_filetype['type'] ) ? '' : $wp_filetype['type'];
+		$proper_filename = empty( $wp_filetype['proper_filename'] ) ? '' : $wp_filetype['proper_filename'];
+
+		// Check to see if wp_check_filetype_and_ext() determined the filename was incorrect.
+		if ( $proper_filename ) {
+			$file_name = $proper_filename;
+		}
+
+		if ( ( ! $type || ! $ext ) && ! current_user_can( 'unfiltered_upload' ) ) {
+			return new WP_Error( 'import_file_error', __( 'Sorry, this file type is not permitted for security reasons.', 'wordpress-importer' ) );
+		}
+
+		$uploads = wp_upload_dir( $post['upload_date'] );
+		if ( ! ( $uploads && false === $uploads['error'] ) ) {
+			return new WP_Error( 'upload_dir_error', $uploads['error'] );
+		}
+
+		// Move the file to the uploads dir.
+		$file_name     = wp_unique_filename( $uploads['path'], $file_name );
+		$new_file      = $uploads['path'] . "/$file_name";
+		$move_new_file = copy( $tmp_file_name, $new_file );
+
+		if ( ! $move_new_file ) {
+			@unlink( $tmp_file_name );
+			return new WP_Error( 'import_file_error', __( 'The uploaded file could not be moved', 'wordpress-importer' ) );
+		}
+
+		// Set correct file permissions.
+		$stat  = stat( dirname( $new_file ) );
+		$perms = $stat['mode'] & 0000666;
+		chmod( $new_file, $perms );
+
+		$upload = array(
+			'file'  => $new_file,
+			'url'   => $uploads['url'] . "/$file_name",
+			'type'  => $wp_filetype['type'],
+			'error' => false,
+		);
+
+		// keep track of the old and new urls so we can substitute them later
+		$this->url_remap[ $url ]          = $upload['url'];
+		$this->url_remap[ $post['guid'] ] = $upload['url']; // r13735, really needed?
+		// keep track of the destination if the remote url is redirected somewhere else
+		if ( isset( $headers['x-final-location'] ) && $headers['x-final-location'] != $url ) {
+			$this->url_remap[ $headers['x-final-location'] ] = $upload['url'];
+		}
+
+		return $upload;
+	}
+
+	protected function set_url_mapping( $post_id, $original_url ) {
+		add_post_meta( $post_id, 'import_url_remap_from', $original_url );
+	}
+
+	/**
+	 * @param $id
+	 *
+	 * @return int|null
+	 */
+	protected function get_post_id_by_wxr_id( $id ) {
+
+		$posts = get_posts(
+			array(
+				'meta_key'   => 'wxr_id',
+				'meta_value' => $id,
+				'fields'     => 'ids',
+			)
+		);
+
+		return count( $posts ) ? $posts[0] : null;
+
+	}
+
+	protected function set_post_wxr_id( $post_id, $wxr_id ) {
+		add_post_meta( $post_id, 'wxr_id', $wxr_id );
+	}
+
+	protected function set_post_orphaned( $post_id, $wxr_parent_id ) {
+		add_post_meta( $post_id, 'orphaned_wxr_id', $wxr_parent_id );
 	}
 
 	protected function parse( SimpleXMLElement $xml ) {
@@ -397,4 +640,102 @@ class Post extends PartialXMLImport {
 
 		return $post;
 	}
+
+	protected function max_attachment_size() {
+		return apply_filters( 'import_attachment_size_limit', 0 );
+	}
+
+	/**
+	 * Parses filename from a Content-Disposition header value.
+	 *
+	 * As per RFC6266:
+	 *
+	 *     content-disposition = "Content-Disposition" ":"
+	 *                            disposition-type *( ";" disposition-parm )
+	 *
+	 *     disposition-type    = "inline" | "attachment" | disp-ext-type
+	 *                         ; case-insensitive
+	 *     disp-ext-type       = token
+	 *
+	 *     disposition-parm    = filename-parm | disp-ext-parm
+	 *
+	 *     filename-parm       = "filename" "=" value
+	 *                         | "filename*" "=" ext-value
+	 *
+	 *     disp-ext-parm       = token "=" value
+	 *                         | ext-token "=" ext-value
+	 *     ext-token           = <the characters in token, followed by "*">
+	 *
+	 * @since 0.7.0
+	 *
+	 * @see WP_REST_Attachments_Controller::get_filename_from_disposition()
+	 *
+	 * @link http://tools.ietf.org/html/rfc2388
+	 * @link http://tools.ietf.org/html/rfc6266
+	 *
+	 * @param string[] $disposition_header List of Content-Disposition header values.
+	 * @return string|null Filename if available, or null if not found.
+	 */
+	protected function get_filename_from_disposition( $disposition_header ) {
+		// Get the filename.
+		$filename = null;
+
+		foreach ( $disposition_header as $value ) {
+			$value = trim( $value );
+
+			if ( strpos( $value, ';' ) === false ) {
+				continue;
+			}
+
+			list( $type, $attr_parts ) = explode( ';', $value, 2 );
+
+			$attr_parts = explode( ';', $attr_parts );
+			$attributes = array();
+
+			foreach ( $attr_parts as $part ) {
+				if ( strpos( $part, '=' ) === false ) {
+					continue;
+				}
+
+				list( $key, $value ) = explode( '=', $part, 2 );
+
+				$attributes[ trim( $key ) ] = trim( $value );
+			}
+
+			if ( empty( $attributes['filename'] ) ) {
+				continue;
+			}
+
+			$filename = trim( $attributes['filename'] );
+
+			// Unquote quoted filename, but after trimming.
+			if ( $filename[0] === '"' && $filename[ strlen( $filename ) - 1 ] === '"' ) {
+				$filename = substr( $filename, 1, -1 );
+			}
+		}
+
+		return $filename;
+	}
+
+	/**
+	 * Retrieves file extension by mime type.
+	 *
+	 * @since 0.7.0
+	 *
+	 * @param string $mime_type Mime type to search extension for.
+	 * @return string|null File extension if available, or null if not found.
+	 */
+	protected function get_file_extension_by_mime_type( $mime_type ) {
+
+		$mime_types = wp_get_mime_types();
+		$map        = array_flip( $mime_types );
+
+		// Some types have multiple extensions, use only the first one.
+		foreach ( $map as $type => $extensions ) {
+			$map[ $type ] = strtok( $extensions, '|' );
+		}
+
+		return isset( $map[ $mime_type ] ) ? $map[ $mime_type ] : null;
+	}
+
 }
