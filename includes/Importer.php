@@ -40,7 +40,7 @@ class Importer {
 
 	}
 
-	public function import_from_wxr( $wxr_file_path ) {
+	public function create_wxr_import( $wxr_file_path ) {
 
 		// Clean previous import
 		$this->clean_previous_import();
@@ -48,6 +48,9 @@ class Importer {
 		// Prepare import
 		$this->prepare_import( $wxr_file_path );
 
+	}
+
+	public function initialize_wxr_import() {
 		// Run the initialize import job (will parse the WXR and create jobs)
 		$stage = ImportStage::create( 'initialization' );
 		$stage->add_job( InitializeImportJob::class );
@@ -127,6 +130,24 @@ class Importer {
 			'file_checksum',
 			array(
 				'type'   => 'string',
+				'single' => true,
+			)
+		);
+
+		register_term_meta(
+			self::TAXONOMY,
+			'author_mapping',
+			array(
+				'type'   => 'array',
+				'single' => true,
+			)
+		);
+
+		register_term_meta(
+			self::TAXONOMY,
+			'processed_authors',
+			array(
+				'type'   => 'array',
 				'single' => true,
 			)
 		);

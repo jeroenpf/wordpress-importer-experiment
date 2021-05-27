@@ -6,6 +6,7 @@ use SimpleXMLElement;
 
 interface PartialImport {
 
-	public function run( $object );
+	public function process( $object );
+	public function import();
 
 }

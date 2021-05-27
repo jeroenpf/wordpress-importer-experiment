@@ -9,9 +9,9 @@ class Tag extends PartialXMLImport {
 
 	use TermMetaTrait;
 
-	protected function import( array $data ) {
+	public function import() {
 
-		$tags = apply_filters( 'wp_import_tags', array( $data ) );
+		$tags = apply_filters( 'wp_import_tags', array( $this->data ) );
 
 		if ( empty( $tags ) ) {
 			return;

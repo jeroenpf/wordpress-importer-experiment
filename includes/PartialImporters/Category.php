@@ -9,9 +9,9 @@ class Category extends PartialXMLImport {
 
 	use TermMetaTrait;
 
-	protected function import( array $data ) {
+	public function import() {
 
-		$categories = apply_filters( 'wp_import_categories', array( $data ) );
+		$categories = apply_filters( 'wp_import_categories', array( $this->data ) );
 
 		if ( empty( $categories ) ) {
 			return;

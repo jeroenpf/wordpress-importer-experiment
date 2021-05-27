@@ -62,7 +62,8 @@ class WXRImportJob extends Job {
 		foreach ( (array) $job_meta['objects'] as $object ) {
 			/** @var PartialImport $partial_importer */
 			$partial_importer = new $partial_importer_class( $this->importer );
-			$partial_importer->run( $object );
+			$partial_importer->process( $object );
+			$partial_importer->import();
 		}
 
 		//      $processed = get_term_meta( $term_id, 'processed', true ) ?: 0;

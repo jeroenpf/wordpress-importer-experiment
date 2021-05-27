@@ -9,8 +9,8 @@ class Term extends PartialXMLImport {
 
 	use TermMetaTrait;
 
-	protected function import( array $data ) {
-		$terms = apply_filters( 'wp_import_terms', array( $data ) );
+	public function import() {
+		$terms = apply_filters( 'wp_import_terms', array( $this->data ) );
 
 		if ( empty( $terms ) ) {
 			return;

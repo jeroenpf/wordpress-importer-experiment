@@ -13,6 +13,13 @@ abstract class PartialXMLImport implements PartialImport {
 	public $namespaces = array();
 
 	/**
+	 * Array containing the parsed data.
+	 *
+	 * @var array Parsed data.
+	 */
+	protected $data = array();
+
+	/**
 	 * @var Importer
 	 */
 	protected $importer;
@@ -30,15 +37,7 @@ abstract class PartialXMLImport implements PartialImport {
 	 */
 	abstract protected function parse( SimpleXMLElement $xml );
 
-	abstract protected function import( array $data );
-
-	/**
-	 * Run the partial importer.
-	 *
-	 * @param string $object Object byte range eg. 1234:4567
-	 */
-	public function run( $object ) {
-
+	public function process( $object ) {
 		// Get the XML fragment from the WXR.
 		$handle = fopen( $this->importer->get_import_meta( 'file' ), 'rb' );
 		$xml    = $this->get_object_xml( $object, $handle );
@@ -46,11 +45,17 @@ abstract class PartialXMLImport implements PartialImport {
 
 		// Format XML fragment and convert into an SimpleXMLElement.
 		$xml = $this->format_xml( $xml );
+
 		$xml = $this->to_simplexml_element( $xml );
 
-		// Parse and import.
-		$this->import( $this->parse( $xml ) );
+		$this->data = $this->parse( $xml );
+	}
 
+	/**
+	 * @return array
+	 */
+	public function get_data() {
+		return $this->data;
 	}
 
 	/**

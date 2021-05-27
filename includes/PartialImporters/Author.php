@@ -8,14 +8,23 @@ use SimpleXMLElement;
 class Author extends PartialXMLImport {
 
 	protected function parse( SimpleXMLElement $xml ) {
-		// TODO: Implement parse() method.
 
-		echo "Author\n";
+		$author = $xml->xpath( '/rss/channel/wp:author' )[0];
 
-		return [];
+		$a = $author->children( $this->namespaces['wp'] );
+
+		return array(
+			'author_id'           => (int) $a->author_id,
+			'author_login'        => (string) $a->author_login,
+			'author_email'        => (string) $a->author_email,
+			'author_display_name' => (string) $a->author_display_name,
+			'author_first_name'   => (string) $a->author_first_name,
+			'author_last_name'    => (string) $a->author_last_name,
+		);
+
 	}
 
-	protected function import( array $data ) {
+	public function import() {
 		// TODO: Implement import() method.
 	}
 }

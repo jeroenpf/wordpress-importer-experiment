@@ -7,8 +7,8 @@ use SimpleXMLElement;
 
 class Post extends PartialXMLImport {
 
-	protected function import( array $data ) {
-		echo sprintf( "Importing the post %s\n", $data['title'] );
+	public function import() {
+		echo sprintf( "Importing the post %s\n", $this->data['title'] );
 	}
 
 	protected function parse( SimpleXMLElement $xml ) {

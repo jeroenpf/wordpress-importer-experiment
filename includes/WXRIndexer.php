@@ -2,7 +2,15 @@
 
 namespace ImporterExperiment;
 
+use XmlParser;
 
+/**
+ * Class WXR_Indexer
+ *
+ * The WXR indexer parses a WXR file and returns the tags as a byte range.
+ *
+ * @package ImporterExperiment
+ */
 class WXR_Indexer {
 
 	/**
@@ -10,11 +18,27 @@ class WXR_Indexer {
 	 */
 	protected $parser;
 
+	/**
+	 * An array of tags and byte positions.
+	 *
+	 * @var array
+	 */
 	protected $elements = array();
 
 	protected $handle;
 
-	protected $allowed_tags = array( 'item', 'wp:category', 'wp:author', 'wp:term', 'wp:tag' );
+	/**
+	 * The tags handled by the indexer. Tags not specified in this array are ignored.
+	 *
+	 * @var string[]
+	 */
+	protected $allowed_tags = array(
+		'item',
+		'wp:category',
+		'wp:author',
+		'wp:term',
+		'wp:tag',
+	);
 
 	public function __construct() {
 
@@ -26,9 +50,13 @@ class WXR_Indexer {
 		xml_parser_set_option( $this->parser, XML_OPTION_SKIP_WHITE, 0 );
 	}
 
-	public function parse( $file ) {
+	public function parse( $file, array $allowed_tags = null ) {
 		if ( ! is_readable( $file ) ) {
 			throw new Exception( 'WXR file does not exist' );
+		}
+
+		if ( ! empty( $allowed_tags ) ) {
+			$this->allowed_tags = $allowed_tags;
 		}
 
 		$this->handle = fopen( $file, 'rb' );
