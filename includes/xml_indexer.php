@@ -14,9 +14,6 @@ class WXR_Indexer {
 
 	protected $handle;
 
-	protected $data        = '';
-	protected $data_offset = 0;
-
 	protected $allowed_tags = array( 'item', 'wp:category', 'wp:author', 'wp:term', 'wp:tag' );
 
 	public function __construct() {
@@ -34,12 +31,10 @@ class WXR_Indexer {
 			throw new Exception( 'WXR file does not exist' );
 		}
 
-		$this->handle      = fopen( $file, 'rb' );
-		$this->data_offset = 0;
-		$chunk_size        = 4096;
+		$this->handle = fopen( $file, 'rb' );
 
 		while ( ! feof( $this->handle ) ) {
-			$data = fread( $this->handle, $chunk_size );
+			$data = fread( $this->handle, 4096 );
 			xml_parse( $this->parser, $data, feof( $this->handle ) );
 		}
 
@@ -68,12 +63,9 @@ class WXR_Indexer {
 			return;
 		}
 
-		$p = xml_get_current_byte_index( $this->parser );
-
 		// Get the byte position of the tag start of the tag.
 		$current_pointer = ftell( $this->handle );
-		$search          = '<' . $tag;
-		$start           = $this->get_tag_start_byte( $p - mb_strlen( $search ), $search );
+		$start           = $this->get_tag_start_byte( xml_get_current_byte_index( $this->parser ), $tag );
 
 		// Set the file pointer back to where it was before we backtracked.
 		fseek( $this->handle, $current_pointer );
@@ -81,15 +73,23 @@ class WXR_Indexer {
 		$this->elements[ $tag ][] = $start;
 	}
 
+	/**
+	 * Find the opening tag byte position of the given tag.
+	 *
+	 * @param int $start_byte The byte offset at which to start check the tag.
+	 * @param string $tag The tag name we are looking for.
+	 *
+	 * @return int Byte offset the tag starts at.
+	 */
 	protected function get_tag_start_byte( $start_byte, $tag ) {
 
-		$str_len = mb_strlen( $tag );
+		$search        = '<' . $tag;
+		$search_length = mb_strlen( $search );
+		fseek( $this->handle, $start_byte - $search_length );
+		$chunk = fread( $this->handle, $search_length );
 
-		fseek( $this->handle, $start_byte );
-		$chunk = fread( $this->handle, $str_len );
-
-		return $chunk === $tag
-			? $start_byte
+		return $chunk === $search
+			? $start_byte - $search_length
 			: $this->get_tag_start_byte( $start_byte - 1, $tag );
 
 	}
