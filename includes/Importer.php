@@ -25,6 +25,10 @@ class Importer {
 	 * @var Abstracts\JobRunner|mixed
 	 */
 	private $job_runner;
+	/**
+	 * @var array|false|\WP_Error|\WP_Term|null
+	 */
+	private $mapping_term;
 
 	public function init() {
 		// Register actions and taxonomies
@@ -68,6 +72,61 @@ class Importer {
 		return get_term_meta( $import_term->term_id, $key, true );
 	}
 
+	public function set_mapping( $type, $wxr_id, $new_id ) {
+		$term_name = sprintf( '%s_map_%s_to_%s', $type, $wxr_id, $new_id );
+		$term      = wp_insert_term(
+			$term_name,
+			self::TAXONOMY,
+			array(
+				'parent' => $this->get_mapping_term()->term_id,
+			)
+		);
+
+		add_term_meta( $term['term_id'], 'mapping_wxr_id', $wxr_id );
+		add_term_meta( $term['term_id'], 'mapping_new_id', $new_id );
+		add_term_meta( $term['term_id'], 'mapping_type', $type );
+	}
+
+	public function get_mapped_id( $type, $wxr_id ) {
+
+		$meta_query_args = array(
+			array(
+				'key'     => 'mapping_wxr_id',
+				'value'   => $wxr_id,
+				'compare' => '=',
+			),
+			array(
+				'key'     => 'mapping_type',
+				'value'   => $type,
+				'compare' => '=',
+			),
+		);
+
+		$terms = get_terms(
+			array(
+				'hide_empty' => false,
+				'taxonomy'   => self::TAXONOMY,
+				'parent'     => $this->get_mapping_term()->term_id,
+				'meta_query' => $meta_query_args,
+			)
+		);
+
+		if ( ! count( $terms ) ) {
+			return null;
+		}
+
+		return get_term_meta( $terms[0]->term_id, 'mapping_new_id', true );
+	}
+
+
+	public function get_mapping_term() {
+		if ( empty( $this->mapping_term ) ) {
+			$this->mapping_term = get_term_by( 'name', 'mappings', self::TAXONOMY );
+		}
+
+		return $this->mapping_term;
+	}
+
 	/**
 	 * @return array|false|\WP_Error|\WP_Term|null
 	 */
@@ -81,8 +140,10 @@ class Importer {
 
 
 	protected function prepare_import( $wxr_file_path ) {
-		$import_term = wp_insert_term( 'import', self::TAXONOMY );
-		$stages_term = wp_insert_term( 'stages', self::TAXONOMY );
+		$import_term   = wp_insert_term( 'import', self::TAXONOMY );
+		$stages_term   = wp_insert_term( 'stages', self::TAXONOMY );
+		$mappings_term = wp_insert_term( 'mappings', self::TAXONOMY );
+
 		$this->set_import_meta( 'file', $wxr_file_path );
 		$this->set_import_meta( 'file_checksum', md5_file( $wxr_file_path ) );
 		$this->set_import_meta( 'status', ImportStage::STATUS_PENDING );
@@ -137,6 +198,33 @@ class Importer {
 		register_term_meta(
 			self::TAXONOMY,
 			'author_mapping',
+			array(
+				'type'   => 'array',
+				'single' => true,
+			)
+		);
+
+		register_term_meta(
+			self::TAXONOMY,
+			'mapping_wxr_id',
+			array(
+				'type'   => 'string',
+				'single' => true,
+			)
+		);
+
+		register_term_meta(
+			self::TAXONOMY,
+			'mapping_new_id',
+			array(
+				'type'   => 'string',
+				'single' => true,
+			)
+		);
+
+		register_term_meta(
+			self::TAXONOMY,
+			'mapping_type',
 			array(
 				'type'   => 'array',
 				'single' => true,

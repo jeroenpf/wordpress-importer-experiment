@@ -168,8 +168,13 @@ class Admin {
 			}
 		}
 
-		$this->importer->set_import_meta( 'author_mapping', $author_mapping );
-		$this->importer->set_import_meta( 'processed_authors', $processed_authors );
+		foreach ( $author_mapping as $wxr => $new ) {
+			$this->importer->set_mapping( 'author', $wxr, $new );
+		}
+
+		foreach ( $processed_authors as $wxr => $new ) {
+			$this->importer->set_mapping( 'processed_author', $wxr, $new );
+		}
 
 	}
 
