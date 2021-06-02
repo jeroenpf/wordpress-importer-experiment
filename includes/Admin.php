@@ -52,36 +52,6 @@ class Admin {
 				break;
 
 			default:
-
-
-				$args = array(
-					'post_id'    => 52,
-					'type'       => ImportStage::STAGE_COMMENT_TYPE,
-					'count'      => true,
-					'meta_query' => array(
-						array(
-							'relation' => 'OR',
-							array(
-								'key'     => 'final_stage',
-								'compare' => 'NOT EXISTS',
-							),
-							array(
-								'key'   => 'final_stage',
-								'value' => false,
-							),
-						),
-						array(
-							'key'     => 'status',
-							'value'   => ImportStage::STATUS_COMPLETED,
-							'compare' => '!=',
-						),
-					),
-
-				);
-
-				var_dump(get_comments( $args ));
-
-
 				include __DIR__ . '/../partials/start.php';
 				break;
 
