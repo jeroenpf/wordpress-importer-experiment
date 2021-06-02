@@ -4,6 +4,8 @@ namespace ImporterExperiment\Interfaces;
 
 interface JobRunner {
 
-	public function run( $job_class, $job_meta );
+	public function run();
+
+	public static function init();
 
 }

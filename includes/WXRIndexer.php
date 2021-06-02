@@ -79,6 +79,10 @@ class WXR_Indexer {
 		}
 	}
 
+	public function get_data_raw( $type ) {
+		return empty( $this->elements[ $type ] ) ? array() : $this->elements[ $type ];
+	}
+
 	public function get_count( $type ) {
 
 		return isset( $this->elements[ $type ] ) ? count( $this->elements[ $type ] ) : 0;

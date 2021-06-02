@@ -5,19 +5,23 @@ namespace ImporterExperiment\PartialImporters;
 use ImporterExperiment\Abstracts\PartialXMLImport;
 use SimpleXMLElement;
 use WP_Error;
-use WP_Query;
 
 class Post extends PartialXMLImport {
 
 	protected $processed_authors = array();
 	protected $author_mapping    = array();
 
+	protected $timer = array();
+	/**
+	 * @var array
+	 */
+	private $url_remap;
+
 	public function import() {
 		$posts = apply_filters( 'wp_import_post', array( $this->data ) );
 
-		$this->author_mapping    = $this->importer->get_import_meta( 'author_mapping' );
-		$this->processed_authors = $this->importer->get_import_meta( 'processed_authors' );
-
+		$this->author_mapping    = $this->import->get_meta( 'author_mapping' );
+		$this->processed_authors = $this->import->get_meta( 'processed_authors' );
 		foreach ( $posts as $post ) {
 			$this->import_post( $post );
 		}
@@ -59,6 +63,7 @@ class Post extends PartialXMLImport {
 
 		if ( 'nav_menu_item' === $post['post_type'] ) {
 			//$this->process_menu_item( $post );
+			// todo menu item
 			return;
 		}
 
@@ -261,6 +266,12 @@ class Post extends PartialXMLImport {
 			$post['postmeta'] = array();
 		}
 
+		// Set the import ID as meta.
+		$post['postmeta'][] = array(
+			'key'   => 'import_id',
+			'value' => $this->import->get_id(),
+		);
+
 		$post['postmeta'] = apply_filters( 'wp_import_post_meta', $post['postmeta'], $post_id, $post );
 
 		// add/update post meta
@@ -331,7 +342,7 @@ class Post extends PartialXMLImport {
 		//          );
 		//      }
 
-		$base_url = $this->importer->get_import_meta( 'base_site_url' );
+		$base_url = $this->import->get_meta( 'base_site_url' );
 
 		// if the URL is absolute, but does not contain address, then upload it assuming base_site_url
 		if ( preg_match( '|^/[\w\W]+$|', $url ) ) {
@@ -361,11 +372,34 @@ class Post extends PartialXMLImport {
 			$parts = pathinfo( $url );
 			$name  = basename( $parts['basename'], ".{$parts['extension']}" ); // PATHINFO_FILENAME in PHP 5.2
 
-			// Set the url mapping that will be used later to convert old urls to new attachement urls.
-			$this->set_url_mapping( $post_id, $parts['dirname'] . '/' . $name );
+			$parts_new = pathinfo( $upload['url'] );
+			$name_new  = basename( $parts_new['basename'], ".{$parts_new['extension']}" );
+
+			$this->url_remap[ $parts['dirname'] . '/' . $name ] = $parts_new['dirname'] . '/' . $name_new;
 		}
 
+		$this->save_url_remap();
+
 		return $post_id;
+	}
+
+	/**
+	 * Adds url mappings from the current attachment.
+	 *
+	 * @param $post_id
+	 */
+	protected function save_url_remap() {
+
+		if ( empty( $this->url_remap ) ) {
+			return;
+		}
+
+		$remap = $this->import->get_meta( 'import_url_remap_from' ) ?: array();
+
+		$remap = array_merge( $remap, $this->url_remap );
+
+		$this->import->set_meta( 'import_url_remap_from', $remap );
+
 	}
 
 	/**
@@ -524,10 +558,6 @@ class Post extends PartialXMLImport {
 		}
 
 		return $upload;
-	}
-
-	protected function set_url_mapping( $post_id, $original_url ) {
-		add_post_meta( $post_id, 'import_url_remap_from', $original_url );
 	}
 
 	/**

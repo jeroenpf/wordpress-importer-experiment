@@ -22,9 +22,6 @@ use ImporterExperiment\PartialImporters\Term;
  */
 class WXRImportJob extends Job {
 
-
-	const MAX_OBJECTS_PER_JOB = 15;
-
 	/**
 	 * @var string[] A list of partial importer classnames.
 	 */
@@ -37,26 +34,27 @@ class WXRImportJob extends Job {
 	);
 
 	/**
-	 * @param $job_meta
-	 * @param ImportStage|null $stage
+	 * @return bool
 	 *
-	 * @return false
-	 *
-	 * @throws \Exception
 	 * @todo Error handling, checking if the meta exists, etc.
 	 */
-	public function run( $job_meta, ImportStage $stage = null ) {
+	public function run() {
 
-		$job_meta = get_term_meta( $job_meta['stage_job'], 'job_arguments', true );
-
-		$file     = $this->importer->get_import_meta( 'file' );
-		$checksum = $this->importer->get_import_meta( 'file_checksum' );
+		$file     = $this->import->get_meta( 'wxr_file' );
+		$checksum = $this->import->get_meta( 'wxr_file_checksum' );
 
 		if ( md5_file( $file ) !== $checksum ) {
 			return false;
 		}
 
-		$importer = $job_meta['importer'];
+		$objects = $this->get_objects_and_schedule_next();
+
+		// There was no more object.
+		if ( empty( $objects ) ) {
+			return false;
+		}
+
+		$importer = $this->arguments['importer'];
 
 		if ( ! isset( $this->default_partial_importers[ $importer ] ) ) {
 			throw new Exception( sprintf( __( 'Partial importer of type %s not implemented.' ), $importer ) );
@@ -64,40 +62,47 @@ class WXRImportJob extends Job {
 
 		$partial_importer_class = apply_filters( 'wordpress_importer_' . $importer . '_class', $this->default_partial_importers[ $importer ] );
 
-		// To prevent timeout, large object batches will be split into new jobs.
-		$objects = $job_meta['objects'];
-
-		if ( count( $objects ) > self::MAX_OBJECTS_PER_JOB ) {
-			$objects = array_splice( $job_meta['objects'], -self::MAX_OBJECTS_PER_JOB );
-			$this->split_into_smaller_batches( $job_meta, $stage );
-		}
-
 		foreach ( $objects as $object ) {
 			/** @var PartialImport $partial_importer */
-			$partial_importer = new $partial_importer_class( $this->importer );
+			$start            = microtime( true );
+			$partial_importer = new $partial_importer_class( $this->import );
 			$partial_importer->process( $object );
 			$partial_importer->import();
+			$total = ( microtime( true ) - $start );
 		}
 
-		//      $processed = get_term_meta( $term_id, 'processed', true ) ?: 0;
-		//      update_term_meta( $term_id, 'processed', $processed + count( $job_data['objects'] ) );
 	}
 
-	/**
-	 * If there are more than MAX_OBJECTS_PER_JOB objects, the total execution time of the
-	 * batch will be too long and the batch needs to be split into smaller batches.
-	 *
-	 * @param $job_meta
-	 * @param $stage
-	 */
-	protected function split_into_smaller_batches( $job_meta, $stage ) {
 
-		$objects = $job_meta['objects'];
+	public function get_objects_and_schedule_next() {
 
-		while ( count( $objects ) ) {
-			$job_meta['objects'] = array_splice( $objects, -self::MAX_OBJECTS_PER_JOB );
-			$stage->add_job( static::class, $job_meta );
+		$stage = ImportStage::get_or_create( $this->arguments['stage_name'], $this->import );
+
+		$objects = $stage->get_meta( 'objects' );
+
+		$objects_per_batch = $stage->get_meta( 'per_batch' );
+
+		if ( ! count( $objects ) ) {
+			return array();
 		}
+
+		$current_objects = array_splice( $objects, 0, $objects_per_batch );
+
+		$stage->set_meta( 'objects', $objects );
+
+		if ( ! count( $objects ) ) {
+			return $current_objects;
+		}
+
+		$job_args = array(
+			'importer'   => $this->arguments['importer'],
+			'stage_name' => $this->arguments['stage_name'],
+		);
+
+		// Create a job to process the next object.
+		$stage->add_job( static::class, $job_args );
+
+		return $current_objects;
 
 	}
 

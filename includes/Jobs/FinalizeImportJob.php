@@ -3,13 +3,13 @@
 namespace ImporterExperiment\Jobs;
 
 use ImporterExperiment\Abstracts\Job;
-use ImporterExperiment\ImportStage;
+use ImporterExperiment\Import;
 
 class FinalizeImportJob extends Job {
 
-	public function run( $job_meta, ImportStage $stage = null ) {
+	public function run() {
 
-		$this->importer->set_import_meta( 'status', ImportStage::STATUS_COMPLETED );
+		//$this->import->set_status( Import::STATUS_DONE );
 	}
 
 }

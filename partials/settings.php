@@ -1,4 +1,9 @@
-<form action="<?php echo add_query_arg( array( 'action' => 'start-import' ) ); ?>" method="post">
+<form action="<?php echo add_query_arg(
+	array(
+		'action'    => 'start-import',
+		'import_id' => $import->get_id(),
+	)
+); ?>" method="post">
 	<?php wp_nonce_field( 'start-import' ); ?>
 
 	<?php if ( ! empty( $authors ) ) : ?>

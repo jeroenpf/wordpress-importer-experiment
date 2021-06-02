@@ -2,9 +2,10 @@
 
 namespace ImporterExperiment;
 
+use ImporterExperiment\Abstracts\Job;
 use ImporterExperiment\Abstracts\Scheduler;
 use ImporterExperiment\Abstracts\JobRunner;
-use WP_Term;
+use WP_Comment;
 
 class ImportStage {
 
@@ -14,82 +15,76 @@ class ImportStage {
 	const STATUS_COMPLETED = 'completed';
 	const STATUS_HOLD      = 'hold';
 
-	/**
-	 * Taxonomy of the import
-	 *
-	 * @var string
-	 */
-	protected $taxonomy;
+	const STAGE_COMMENT_TYPE = 'import_stage';
+	const JOB_COMMENT_TYPE   = 'import_stage_job';
 
 	/**
-	 * @var Importer
+	 * @var Import
 	 */
-	protected $importer;
+	private $import;
 	/**
-	 * @var WP_Term
+	 * @var WP_Comment
 	 */
-	private $stage_term;
+	private $stage;
 
 	/**
 	 * Creates a new stage or updates existing stage.
 	 *
 	 * @param $name
-	 * @param array $depends_on
+	 * @param Import $import
 	 *
 	 * @return static
-	 * @throws \Exception
 	 */
-	public static function create( $name ) {
-		$importer = Importer::instance();
-		// If stage does not exist, create it
-		$stages = get_term_by( 'name', 'stages', $importer::TAXONOMY );
+	public static function get_or_create( $name, Import $import ) {
 
-		if ( ! $stages instanceof WP_Term ) {
-			throw new \Exception( 'Stages not set' );
-		}
-
-		$terms = get_terms(
+		$stage_comments = get_comments(
 			array(
-				'parent'     => $stages->term_id,
-				'hide_empty' => false,
-				'taxonomy'   => $importer::TAXONOMY,
-				'name'       => $name,
+				'type'       => self::STAGE_COMMENT_TYPE,
+				'post_id'    => $import->get_id(),
+				'meta_key'   => 'name',
+				'meta_value' => $name,
 			)
 		);
 
-		if ( count( $terms ) ) {
-			$stage_id = $terms[0]->term_id;
-		} else {
-			$stage = wp_insert_term(
-				$name,
-				$importer::TAXONOMY,
+		if ( empty( $stage_comments ) ) {
+			$comment_id = wp_insert_comment(
 				array(
-					'parent' => $stages->term_id,
+					'comment_post_ID' => $import->get_id(),
+					'comment_agent'   => 'wordpress-importer',
+					'comment_content' => $name,
+					'comment_type'    => self::STAGE_COMMENT_TYPE,
+					'comment_meta'    => array(
+						'name'   => $name, // Added for searching
+						'status' => self::STATUS_HOLD,
+					),
 				)
 			);
 
-			$stage_id = $stage['term_id'];
+			$stage = get_comment( $comment_id );
+		} else {
+			$stage = $stage_comments[0];
 		}
 
-		// A new stage should not be on hold until explicitly started.
-		update_term_meta( $stage_id, 'status', self::STATUS_HOLD );
+		return new static( $stage, $import );
+	}
 
-		return new static( get_term_by( 'id', $stage_id, $importer::TAXONOMY ) );
+	public static function get_by_id( $id, Import $import ) {
+
+		$stage = get_comment( $id );
+
+		return new static( $stage, $import );
+
 	}
 
 	/**
 	 * Get stage instance
 	 *
-	 * @param WP_Term $stage
+	 * @param WP_Comment $stage
+	 * @param Import $import
 	 */
-	public function __construct( WP_Term $stage ) {
-
-		$importer       = Importer::instance();
-		$this->taxonomy = $importer::TAXONOMY;
-		$this->importer = $importer;
-
-		$this->stage_term = $stage;
-
+	public function __construct( WP_Comment $stage, Import $import ) {
+		$this->import = $import;
+		$this->stage  = $stage;
 	}
 
 	/**
@@ -104,83 +99,125 @@ class ImportStage {
 	 */
 	public function depends_on( $dependencies = array() ) {
 
-		$terms = get_terms(
+		$comments = get_comments(
 			array(
-				'hide_empty' => false,
-				'parent'     => $this->get_parent_id(),
-				'name'       => $dependencies,
-				'taxonomy'   => $this->taxonomy,
+				'type'    => self::STAGE_COMMENT_TYPE,
+				'post_id' => $this->import->get_id(),
 			)
 		);
 
-		$terms = array_map(
-			static function( WP_Term $term ) {
-				return $term->name;
+		$stages = array_map(
+			static function( WP_Comment $comment ) {
+				return $comment->comment_content;
 			},
-			$terms
+			$comments
 		);
 
-		$diff = array_diff( $dependencies, $terms );
+		$diff = array_diff( $dependencies, $stages );
 
 		if ( count( $diff ) ) {
 			throw new \Exception( sprintf( "The stages '%s' do not exist, dependencies can't be set.", implode( ', ', $diff ) ) );
 		}
 
-		update_term_meta( $this->stage_term->term_id, 'state_depends_on', $dependencies );
+		update_comment_meta( $this->stage->comment_ID, 'state_depends_on', $dependencies );
 	}
 
 	/**
-	 * Set the status of the stage to pending.
+	 * Set the status of the stage to pending and schedule the jobs in the stage.
 	 */
 	public function release() {
 		$this->set_status( self::STATUS_PENDING );
-	}
-
-	public function start() {
-		$this->set_status( self::STATUS_RUNNING );
-	}
-
-	public function complete() {
-		$this->set_status( self::STATUS_COMPLETED );
+		$this->schedule_jobs();
 	}
 
 	public function set_status( $status ) {
-		update_term_meta( $this->stage_term->term_id, 'status', $status );
+		$this->set_meta( 'status', $status );
 	}
 
 	public function get_status() {
-		return get_term_meta( $this->stage_term->term_id, 'status', true );
+		return $this->get_meta( 'status' );
+	}
+
+	public function set_meta( $key, $value ) {
+		return update_comment_meta( $this->stage->comment_ID, $key, $value );
+	}
+
+	public function get_meta( $key = '' ) {
+		return get_comment_meta( $this->stage->comment_ID, $key, true );
+	}
+
+	public function set_final_stage( $is_final = true ) {
+		$this->set_meta( 'final_stage', true );
 	}
 
 	public function dependencies_met() {
 
-		$dependencies = get_term_meta( $this->stage_term->term_id, 'state_depends_on', true );
+		$dependencies = $this->get_meta( 'state_depends_on' );
+
+		// Check if this is a final stage and all non-final stages have completed.
+		if ( $this->is_final_stage() && ! $this->can_run_final_stages() ) {
+			return false;
+		}
 
 		if ( empty( $dependencies ) ) {
 			return true;
 		}
 
-		// Get all completes dependencies.
-		$terms = get_terms(
-			array(
-				'hide_empty' => false,
-				'parent'     => $this->get_parent_id(),
-				'name'       => $dependencies,
-				'taxonomy'   => $this->taxonomy,
-				'meta_key'   => 'status',
-				'meta_value' => ImportStage::STATUS_COMPLETED,
-			)
-		);
-
-		$terms = array_map(
-			static function( WP_Term $term ) {
-				return $term->name;
+		$completed_stages = array_map(
+			static function( ImportStage $stage ) {
+				return $stage->get_name();
 			},
-			$terms
+			$this->import->get_stages( array( self::STATUS_COMPLETED ) )
 		);
 
 		// Check that all dependencies are in the fetched completed dependencies.
-		return 0 === count( array_diff( $dependencies, $terms ) );
+		return 0 === count( array_diff( $dependencies, $completed_stages ) );
+	}
+
+	public function get_name() {
+		return $this->stage->comment_content;
+	}
+
+	public function is_final_stage() {
+		return '1' === $this->get_meta( 'final_stage' );
+	}
+
+
+	/**
+	 * Verify that all non-final stages have completed.
+	 *
+	 * If all non-final stages have completed, final stages are allowed to run.
+	 *
+	 * @return bool
+	 */
+	protected function can_run_final_stages() {
+
+		$args = array(
+			'post_id'    => $this->import->get_id(),
+			'type'       => static::STAGE_COMMENT_TYPE,
+			'count'      => true,
+			'meta_query' => array(
+				array(
+					'relation' => 'OR',
+					array(
+						'key'     => 'final_stage',
+						'compare' => 'NOT EXISTS',
+					),
+					array(
+						'key'   => 'final_stage',
+						'value' => false,
+					),
+				),
+				array(
+					'key'     => 'status',
+					'value'   => self::STATUS_COMPLETED,
+					'compare' => '!=',
+				),
+			),
+
+		);
+
+		return get_comments( $args ) <= 0;
 	}
 
 	/**
@@ -196,67 +233,110 @@ class ImportStage {
 		}
 
 		if ( ! $this->has_jobs() ) {
-			$this->complete();
+			$this->set_status( self::STATUS_COMPLETED );
 			return;
 		}
 
-		$jobs      = get_terms(
-			array(
-				'hide_empty' => false,
-				'parent'     => $this->get_id(),
-				'taxonomy'   => $this->taxonomy,
-				'meta_key'   => 'status',
-				'meta_value' => ImportStage::STATUS_PENDING,
-			)
-		);
+		$jobs = $this->get_jobs();
+
 		$scheduler = Scheduler::instance();
-		$runner    = JobRunner::instance();
 
 		foreach ( $jobs as $job ) {
 
-			$class = get_term_meta( $job->term_id, 'job_class', true );
+			$class = get_comment_meta( $job->comment_ID, 'job_class', true );
 			// Slashes can't be stored in meta so they were replaced with forward-slashes
 			// and need to be converted back.
 			$class = str_replace( '/', '\\', $class );
-			update_term_meta( $job->term_id, 'status', ImportStage::STATUS_SCHEDULED );
-			$args['stage_job'] = $job->term_id;
-			$scheduler->schedule( $runner->get_hook_name(), $class, $args );
+			update_comment_meta( $job->comment_ID, 'status', self::STATUS_SCHEDULED );
+			$args['stage_job'] = $job->comment_ID;
+
+			$scheduler->schedule( JobRunner::ACTION_HOOK, $class, $args );
 		}
 
+	}
+
+	/**
+	 * @param array $statuses
+	 *
+	 * @return WP_Comment[]
+	 */
+	public function get_jobs( $statuses = array( Job::STATUS_PENDING ), $limit = 0 ) {
+
+		$args = array(
+			'parent' => $this->get_id(),
+			'type'   => self::JOB_COMMENT_TYPE,
+		);
+
+		if ( $limit ) {
+			$args['number'] = $limit;
+		}
+
+		if ( ! empty( $statuses ) ) {
+			$args = array_merge(
+				$args,
+				array(
+					'meta_key'   => 'status',
+					'meta_value' => $statuses,
+				)
+			);
+		}
+
+		/** @var WP_Comment[] $jobs */
+		return get_comments( $args );
 	}
 
 	/**
 	 * Does the stage have jobs?
 	 *
+	 * @param bool $ignore_completed
+	 *
 	 * @return bool
 	 */
-	public function has_jobs() {
-		return wp_count_terms(
-			array(
-				'taxonomy'   => $this->taxonomy,
-				'parent'     => $this->get_id(),
-				'hide_empty' => false,
-			)
-		) > 0;
+	public function has_jobs( $ignore_completed = false ) {
+
+		return $this->get_jobs_count( $ignore_completed ) > 0;
 	}
 
+	/**
+	 * @param false $ignore_completed
+	 *
+	 * @return int
+	 */
+	public function get_jobs_count( $ignore_completed = false ) {
+		$args = array(
+			'type'   => self::JOB_COMMENT_TYPE,
+			'parent' => $this->get_id(),
+			'count'  => true,
+		);
+
+		if ( $ignore_completed ) {
+			$args = array_merge(
+				$args,
+				array(
+					'meta_key'     => 'status',
+					'meta_value'   => self::STATUS_COMPLETED,
+					'meta_compare' => '!=',
+				)
+			);
+		}
+
+		return get_comments( $args );
+	}
 
 	/**
 	 * @return int
 	 */
 	public function get_id() {
-		return $this->stage_term->term_id;
-	}
-
-	public function get_parent_id() {
-		return $this->stage_term->parent;
+		return $this->stage->comment_ID;
 	}
 
 	/**
-	 * Add new job to the stage
+	 * Add new job to the stage and returns the id of the job (comment).
 	 *
 	 * @param $class
 	 * @param array $args
+	 *
+	 * @return int
 	 *
 	 * @throws \Exception
 	 */
@@ -266,41 +346,29 @@ class ImportStage {
 		// Meta data slashes get stripped so we need to convert them.
 		$class = str_replace( '\\', '/', $class );
 
-		$status = get_term_meta( $this->stage_term->term_id, 'status' );
-
-		if ( self::STATUS_COMPLETED === $status ) {
-			throw new \Exception( 'Adding a job to a completed stage is not allowed.' );
+		if ( self::STATUS_COMPLETED === $this->get_status() ) {
+			throw new Exception( 'Adding a job to a completed stage is not allowed.' );
 		}
 
 		// Make a unique key for the job to prevent duplicates
-		$job_key = md5( $class . serialize( $args ) );
+		$job_key = wp_generate_uuid4();
 
-		$existing_job = get_terms(
+		$job_id = wp_insert_comment(
 			array(
-				'name'       => $job_key,
-				'hide_empty' => false,
-				'taxonomy'   => $this->taxonomy,
-				'parent'     => $this->stage_term->term_id,
+				'comment_post_ID' => $this->import->get_id(),
+				'comment_parent'  => $this->get_id(),
+				'comment_type'    => self::JOB_COMMENT_TYPE,
+				'comment_agent'   => 'wordpress-importer',
+				'comment_content' => $job_key,
+				'comment_meta'    => array(
+					'job_arguments' => $args,
+					'status'        => self::STATUS_PENDING,
+					'job_class'     => $class,
+				),
 			)
 		);
 
-		if ( count( $existing_job ) ) {
-			$job_id = $existing_job[0]->term_id;
-		} else {
-			$job    = wp_insert_term(
-				$job_key,
-				$this->taxonomy,
-				array(
-					'parent' => $this->stage_term->term_id,
-				)
-			);
-			$job_id = $job['term_id'];
-		}
-
-		add_term_meta( $job_id, 'status', self::STATUS_PENDING );
-		add_term_meta( $job_id, 'job_arguments', $args );
-		add_term_meta( $job_id, 'job_class', $class );
-
+		return $job_id;
 	}
 
 

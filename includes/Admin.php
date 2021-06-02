@@ -4,9 +4,8 @@ namespace ImporterExperiment;
 
 use ActionScheduler;
 use ActionScheduler_Store;
-use http\Client\Request;
+use ImporterExperiment\Abstracts\Scheduler;
 use ImporterExperiment\PartialImporters\Author;
-use ImporterExperiment\PartialImporters\WXRVersion;
 
 class Admin {
 
@@ -14,17 +13,17 @@ class Admin {
 
 
 	/** @var Admin  */
-	private static $admin = null;
+	protected static $admin = null;
 
 	/**
 	 * @var string
 	 */
-	private $plugin_file;
+	protected $plugin_file;
 
 	/**
 	 * @var Importer
 	 */
-	private $importer;
+	protected $importer;
 
 	public function init( $plugin_file ) {
 
@@ -48,11 +47,41 @@ class Admin {
 				break;
 
 			case 'status':
+				$import = new Import( $_GET['import_id'], Scheduler::instance() );
 				include __DIR__ . '/../partials/status.php';
-
 				break;
 
 			default:
+
+
+				$args = array(
+					'post_id'    => 52,
+					'type'       => ImportStage::STAGE_COMMENT_TYPE,
+					'count'      => true,
+					'meta_query' => array(
+						array(
+							'relation' => 'OR',
+							array(
+								'key'     => 'final_stage',
+								'compare' => 'NOT EXISTS',
+							),
+							array(
+								'key'   => 'final_stage',
+								'value' => false,
+							),
+						),
+						array(
+							'key'     => 'status',
+							'value'   => ImportStage::STATUS_COMPLETED,
+							'compare' => '!=',
+						),
+					),
+
+				);
+
+				var_dump(get_comments( $args ));
+
+
 				include __DIR__ . '/../partials/start.php';
 				break;
 
@@ -63,33 +92,40 @@ class Admin {
 	protected function settings_page() {
 
 		$wxr_file = get_attached_file( get_option( self::EXPORT_FILE_OPTION ) );
-		$this->importer->create_wxr_import( $wxr_file );
+		$import   = $this->importer->create_wxr_import( $wxr_file );
 
 		// Get authors
 		$indexer = new WXR_Indexer();
 		$indexer->parse( $wxr_file, array( 'wp:author', 'wp:wxr_version', 'wp:base_site_url', 'wp:base_blog_url' ) );
 
-		$authors       = $this->get_authors_from_wxr( $indexer );
+		$authors       = $this->get_authors_from_wxr( $indexer, $import );
 		$wxr_version   = $this->get_wxr_meta( 'wp:wxr_version', $indexer, $wxr_file );
 		$base_url      = $this->get_wxr_meta( 'wp:base_site_url', $indexer, $wxr_file );
 		$base_blog_url = $this->get_wxr_meta( 'wp:base_blog_url', $indexer, $wxr_file );
 
 		$base_url = $base_url ?: '';
-		$this->importer->set_import_meta( 'wxr_version', $wxr_version );
-		$this->importer->set_import_meta( 'base_site_url', $base_url );
-		$this->importer->set_import_meta( 'base_blog_url', $base_blog_url ?: $base_url );
+		$import->set_meta( 'wxr_version', $wxr_version );
+		$import->set_meta( 'base_site_url', $base_url );
+		$import->set_meta( 'base_blog_url', $base_blog_url ?: $base_url );
 
 		$can_fetch_attachments = $this->allow_fetch_attachments();
 		$can_create_users      = $this->allow_create_users();
 
 		include __DIR__ . '/../partials/settings.php';
-
 	}
 
-	protected function get_authors_from_wxr( WXR_Indexer $indexer ) {
+	/**
+	 * Get a list of authors from the WXR.
+	 *
+	 * @param WXR_Indexer $indexer
+	 * @param Import $import
+	 *
+	 * @return array
+	 */
+	protected function get_authors_from_wxr( WXR_Indexer $indexer, Import $import ) {
 		$authors = array();
 		foreach ( $indexer->get_data( 'wp:author' ) as $author ) {
-			$partial_importer = new Author( $this->importer );
+			$partial_importer = new Author( $import );
 			$partial_importer->process( $author );
 			$author = $partial_importer->get_data();
 
@@ -111,17 +147,17 @@ class Admin {
 	/**
 	 * This method maps authors. It is copied from the old version of the wordpress-importer
 	 * and needs refactoring...
-	 *
+	 * @param Import $import
 	 */
-	protected function get_author_mapping() {
+	protected function set_author_mapping( Import $import ) {
 		if ( ! isset( $_POST['imported_authors'] ) ) {
 			return;
 		}
 
 		$indexer = new WXR_Indexer();
-		$indexer->parse( $this->importer->get_import_meta( 'file' ), array( 'wp:author' ) );
-		$authors           = $this->get_authors_from_wxr( $indexer );
-		$wxr_version       = $this->importer->get_import_meta( 'wxr_version' );
+		$indexer->parse( $import->get_meta( 'wxr_file' ), array( 'wp:author' ) );
+		$authors           = $this->get_authors_from_wxr( $indexer, $import );
+		$wxr_version       = $import->get_meta( 'wxr_version' );
 		$create_users      = $this->allow_create_users();
 		$author_mapping    = array();
 		$processed_authors = array();
@@ -177,8 +213,8 @@ class Admin {
 			}
 		}
 
-		$this->importer->set_import_meta( 'author_mapping', $author_mapping );
-		$this->importer->set_import_meta( 'processed_authors', $processed_authors );
+		$import->set_meta( 'author_mapping', $author_mapping );
+		$import->set_meta( 'processed_authors', $processed_authors );
 
 	}
 
@@ -221,33 +257,11 @@ class Admin {
 	 */
 	public function get_status() {
 
-		$importer = Importer::instance();
-		$terms    = get_terms(
-			array(
-				'taxonomy'   => $importer::TAXONOMY,
-				'hide_empty' => false,
-			)
-		);
-
-		if ( ! count( $terms ) ) {
-			wp_send_json(
-				array(
-					'status' => 'uninitialized',
-				)
-			);
-			exit();
-		}
-
-		$term = $terms[0];
-
-		$total     = get_term_meta( $term->term_id, 'total', true );
-		$processed = get_term_meta( $term->term_id, 'processed', true );
-
 		wp_send_json(
 			array(
 				'status'    => 'running',
-				'total'     => $total,
-				'processed' => $processed,
+				'total'     => 0,
+				'processed' => 0,
 			)
 		);
 		exit();
@@ -255,13 +269,20 @@ class Admin {
 
 	public function run_jobs() {
 
-		set_time_limit(0);
+		set_time_limit( 0 );
 		// Set the store
 
 		apply_filters(
 			'action_scheduler_store_class',
 			function() {
 				return ActionScheduler_Store::DEFAULT_CLASS;
+			}
+		);
+
+		add_filter(
+			'action_scheduler_queue_runner_time_limit',
+			function() {
+				return 30;
 			}
 		);
 
@@ -289,30 +310,44 @@ class Admin {
 
 	public function get_debug() {
 
-		wp_send_json( $this->get_terms_tree() );
+		$import = new Import( $_POST['import_id'], Scheduler::instance() );
+
+		$response = array(
+			'import' => array(
+				'id'   => $import->get_id(),
+				'meta' => $this->parse_meta( $import->get_meta() ),
+			),
+			'stages' => array(),
+		);
+
+		foreach ( $import->get_stages() as $stage ) {
+			$response['stages'][] = array(
+				'id'          => $stage->get_id(),
+				'meta'        => array(
+					'name'       => $stage->get_meta( 'name' ),
+					'status'     => $stage->get_meta( 'status' ),
+					'depends_on' => $stage->get_meta( 'state_depends_on' ),
+				),
+				'jobs'        => $this->format_jobs( $stage ),
+				'total_jobs'  => $stage->get_jobs_count(),
+				'active_jobs' => $stage->get_jobs_count( true ),
+			);
+		}
+
+		wp_send_json( $response );
 
 		exit();
 	}
 
-	protected function get_terms_tree( $parent = 0 ) {
-
-		$terms = get_terms(
-			array(
-				'hide_empty' => false,
-				'taxonomy'   => Importer::TAXONOMY,
-				'parent'     => $parent,
-				'orderby'    => 'term_id',
-			)
-		);
+	protected function format_jobs( ImportStage $stage ) {
 
 		$out = array();
 
-		foreach ( $terms as $term ) {
-			$out[ $term->slug ] = array(
-				'meta'     => $this->parse_term_meta( get_term_meta( $term->term_id, '', true ) ),
-				'children' => $this->get_terms_tree( $term->term_id ),
-				'name'     => $term->name,
-				'id'       => $term->term_id,
+		foreach ( $stage->get_jobs( array(), 10 ) as $job ) {
+			$out[] = array(
+				'id'   => $job->comment_ID,
+				'name' => $job->comment_content,
+				'meta' => $this->parse_meta( get_comment_meta( $job->comment_ID ) ),
 			);
 		}
 
@@ -320,7 +355,7 @@ class Admin {
 
 	}
 
-	protected function parse_term_meta( $metas ) {
+	protected function parse_meta( $metas ) {
 
 		$out = array();
 
@@ -347,7 +382,10 @@ class Admin {
 		if ( isset( $_GET['page'] ) && 'importer-experiment' === $_GET['page'] ) {
 			wp_enqueue_script( 'substack-index-js', plugins_url( '/js/status.js', $this->plugin_file ) );
 			wp_enqueue_style( 'substack-index-css', plugins_url( '/css/status.css', $this->plugin_file ) );
+
+			// Using VueJS and lodash while we are experimenting.
 			wp_enqueue_script( 'vue', 'https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js' );
+			wp_enqueue_script( 'lodash', 'https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js' );
 		}
 
 		$this->register_actions();
@@ -361,8 +399,11 @@ class Admin {
 		}
 
 		if ( ! empty( $_POST ) && 'start-import' === $_GET['action'] && 'importer-experiment' === $_GET['page'] ) {
-			$this->get_author_mapping();
-			$this->importer->initialize_wxr_import();
+
+			$import = $this->importer->get_import_by_id( $_GET['import_id'] );
+			$this->set_author_mapping( $import );
+			$import->start();
+
 			wp_safe_redirect( add_query_arg( array( 'action' => 'status' ) ) );
 		}
 

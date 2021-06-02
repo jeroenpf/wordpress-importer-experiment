@@ -2,6 +2,7 @@
 
 namespace ImporterExperiment\Abstracts;
 
+use ImporterExperiment\Import;
 use ImporterExperiment\Interfaces\PartialImport;
 use ImporterExperiment\Importer;
 use ImporterExperiment\PartialXMLReader;
@@ -19,12 +20,12 @@ abstract class PartialXMLImport extends PartialXMLReader implements PartialImpor
 	protected $data = array();
 
 	/**
-	 * @var Importer
+	 * @var Import
 	 */
-	protected $importer;
+	protected $import;
 
-	public function __construct( Importer $importer ) {
-		$this->importer = $importer;
+	public function __construct( Import $import ) {
+		$this->import = $import;
 	}
 
 	/**
@@ -37,7 +38,7 @@ abstract class PartialXMLImport extends PartialXMLReader implements PartialImpor
 	abstract protected function parse( SimpleXMLElement $xml );
 
 	public function process( $object ) {
-		$wxr_path   = $this->importer->get_import_meta( 'file' );
+		$wxr_path   = $this->import->get_meta( 'wxr_file' );
 		$xml        = $this->object_to_simplexml( $object, $wxr_path );
 		$this->data = $this->parse( $xml );
 	}

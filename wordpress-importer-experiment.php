@@ -24,7 +24,6 @@ add_filter(
 	}
 );
 
-
 // Instantiate the admin interface
 Admin::instance()->init( __FILE__ );
 
