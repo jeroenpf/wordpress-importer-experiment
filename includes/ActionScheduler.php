@@ -15,7 +15,7 @@ class ActionScheduler extends Scheduler {
 			function() {
 				return ActionSchedulerPostStore::class;
 			},
-			101,
+			10,
 			1
 		);
 
@@ -24,7 +24,7 @@ class ActionScheduler extends Scheduler {
 			function() {
 				return 'ActionScheduler_wpCommentLogger';
 			},
-			101,
+			10,
 			1
 		);
 
