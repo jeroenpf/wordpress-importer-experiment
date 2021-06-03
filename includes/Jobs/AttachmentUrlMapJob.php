@@ -3,6 +3,7 @@
 namespace ImporterExperiment\Jobs;
 
 use ImporterExperiment\Abstracts\Job;
+use ImporterExperiment\PartialImporters\Post;
 
 /**
  * Class WXRImportJob
@@ -24,24 +25,24 @@ class AttachmentUrlMapJob extends Job {
 	 */
 	public function run() {
 
+		sleep( 5 );
+
 		// A limit of attachments to handle per job execution to prevent timeouts on certain environments.
-		$limit = apply_filters( 'importer_attachment_remap_limit', 250 );
+		$limit = apply_filters( 'importer_attachment_remap_limit', 100 );
 
-		$remap = $this->import->get_meta( 'import_url_remap_from' );
+		$remap_urls = $this->get_remap_urls( $limit );
 
-		if ( empty( $remap ) ) {
+		if ( empty( $remap_urls ) ) {
 			return;
 		}
 
-		$this->remap_urls( array_splice( $remap, 0, $limit ) );
+		$this->remap_urls( $remap_urls );
 
-		if ( ! count( $remap ) ) {
-			$this->import->delete_meta( 'import_url_remap_from' );
-			return;
+		// If the number of fetched remap url is equal to the limit, we add another job to see if there
+		// are more urls to process.
+		if ( count( $remap_urls ) === $limit ) {
+			$this->add_next_job();
 		}
-
-		$this->import->set_meta( 'import_url_remap_from', $remap );
-		$this->add_next_job();
 	}
 
 	/**
@@ -60,6 +61,38 @@ class AttachmentUrlMapJob extends Job {
 			// remap enclosure urls
 			$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->postmeta} SET meta_value = REPLACE(meta_value, %s, %s) WHERE meta_key='enclosure'", $from, $to ) );
 		}
+	}
+
+	/**
+	 * Get url remapping.
+	 *
+	 * Fetches $limit number of url remap comments from the database.
+	 *
+	 * @param int $limit The number of url remapping to fetch.
+	 *
+	 * @return array An array of old => new urls.
+	 */
+	protected function get_remap_urls( $limit = 50 ) {
+
+		global $wpdb;
+
+		$query = "SELECT c.comment_ID, c.comment_content, cm.meta_value
+					FROM {$wpdb->comments} AS c
+					JOIN {$wpdb->commentmeta} as cm ON cm.comment_id = c.comment_ID
+					WHERE c.comment_post_ID = %d AND cm.meta_key = 'remap_to' AND c.comment_type = %s
+					ORDER BY LENGTH(c.comment_content) DESC
+					LIMIT %d";
+
+		$results = $wpdb->get_results( $wpdb->prepare( $query, $this->import->get_id(), Post::REMAP_COMMENT_TYPE, $limit ) );
+
+		$remap_urls = array();
+
+		foreach ( $results as $result ) {
+			$remap_urls[ $result->comment_content ] = $result->meta_value;
+			wp_delete_comment( $result->comment_ID );
+		}
+
+		return $remap_urls;
 	}
 
 	/**

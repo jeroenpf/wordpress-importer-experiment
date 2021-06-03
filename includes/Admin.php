@@ -363,12 +363,14 @@ class Admin {
 
 	protected function register_actions() {
 
+		$action = isset($_GET['action']) ? $_GET['action'] : null;
+
 		if ( ! empty( $_FILES ) && 'upload' === $_GET['action'] && 'importer-experiment' === $_GET['page'] ) {
 			$this->upload();
 			wp_safe_redirect( add_query_arg( array( 'action' => 'settings' ) ) );
 		}
 
-		if ( ! empty( $_POST ) && 'start-import' === $_GET['action'] && 'importer-experiment' === $_GET['page'] ) {
+		if ( ! empty( $_POST ) && 'start-import' === $action && 'importer-experiment' === $_GET['page'] ) {
 
 			$import = $this->importer->get_import_by_id( $_GET['import_id'] );
 			$this->set_author_mapping( $import );

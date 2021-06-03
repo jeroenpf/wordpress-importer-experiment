@@ -118,7 +118,7 @@ class InitializeImportJob extends Job {
 
 		$stage = ImportStage::get_or_create( 'attachment_remapping', $this->import );
 
-		$stage->add_job( SortUrlMapping::class );
+		$stage->add_job( AttachmentUrlMapJob::class );
 
 		// Run after posts have imported.
 		$stage->depends_on( array( 'posts' ) );

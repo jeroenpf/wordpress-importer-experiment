@@ -8,6 +8,8 @@ use WP_Error;
 
 class Post extends PartialXMLImport {
 
+	const REMAP_COMMENT_TYPE = 'attachment_remap';
+
 	protected $processed_authors = array();
 	protected $author_mapping    = array();
 
@@ -84,6 +86,7 @@ class Post extends PartialXMLImport {
 		 * @param array $post         The post array to be inserted.
 		 */
 		$post_exists = apply_filters( 'wp_import_existing_post', $post_exists, $post );
+		$is_orphaned = false;
 
 		if ( $post_exists && get_post_type( $post_exists ) == $post['post_type'] ) {
 			printf( __( '%s &#8220;%s&#8221; already exists.', 'wordpress-importer' ), $post_type_object->labels->singular_name, esc_html( $post['post_title'] ) );
@@ -92,7 +95,6 @@ class Post extends PartialXMLImport {
 			$this->set_post_wxr_id( (int) $post_exists, (int) $post['post_id'] );
 		} else {
 			$post_parent = (int) $post['post_parent'];
-			$is_orphaned = false;
 
 			if ( $post_parent ) {
 				$processed_parent = $this->get_post_id_by_wxr_id( $post_parent );
@@ -394,12 +396,18 @@ class Post extends PartialXMLImport {
 			return;
 		}
 
-		$remap = $this->import->get_meta( 'import_url_remap_from' ) ?: array();
-
-		$remap = array_merge( $remap, $this->url_remap );
-
-		$this->import->set_meta( 'import_url_remap_from', $remap );
-
+		foreach ( $this->url_remap as $old => $new ) {
+			wp_insert_comment(
+				array(
+					'comment_post_ID' => $this->import->get_id(),
+					'comment_content' => $old,
+					'comment_type'    => self::REMAP_COMMENT_TYPE,
+					'comment_meta'    => array(
+						'remap_to' => $new,
+					),
+				)
+			);
+		}
 	}
 
 	/**
