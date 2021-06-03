@@ -71,6 +71,11 @@ class WXRImportJob extends Job {
 			$total = ( microtime( true ) - $start );
 		}
 
+		// Todo if something failed, we need to add the remaining objects back to the stack and throw an exception.
+		//      The object that failed needs to have be marked as failed and retried X times.
+		//      if we encounter an object that has more than X retries, we log an error and continue. We don't add it back
+		//      to the stack.
+
 	}
 
 

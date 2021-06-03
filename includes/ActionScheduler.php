@@ -29,7 +29,12 @@ class ActionScheduler extends Scheduler {
 		);
 
 		// Load the ActionScheduler library
-		require_once( plugin_dir_path( __FILE__ ) . '/../vendor/woocommerce/action-scheduler/action-scheduler.php' );
+		add_action(
+			'admin_init',
+			function() {
+				require_once( plugin_dir_path( __FILE__ ) . '/../vendor/woocommerce/action-scheduler/action-scheduler.php' );
+			}
+		);
 
 	}
 
