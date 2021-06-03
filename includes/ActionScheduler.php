@@ -13,7 +13,7 @@ class ActionScheduler extends Scheduler {
 		add_filter(
 			'action_scheduler_store_class',
 			function() {
-				return 'ActionScheduler_wpPostStore';
+				return ActionSchedulerPostStore::class;
 			},
 			101,
 			1
@@ -40,7 +40,7 @@ class ActionScheduler extends Scheduler {
 			'args'      => $args,
 		);
 
-		as_enqueue_async_action( $hook, $args, self::ACTION_GROUP );
+		return as_enqueue_async_action( $hook, $args, self::ACTION_GROUP );
 	}
 
 	public function unschedule( $hook ) {

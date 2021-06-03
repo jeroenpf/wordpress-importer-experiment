@@ -246,11 +246,12 @@ class ImportStage {
 			$class = get_comment_meta( $job->comment_ID, 'job_class', true );
 			// Slashes can't be stored in meta so they were replaced with forward-slashes
 			// and need to be converted back.
-			$class = str_replace( '/', '\\', $class );
-			update_comment_meta( $job->comment_ID, 'status', self::STATUS_SCHEDULED );
+			$class             = str_replace( '/', '\\', $class );
 			$args['stage_job'] = $job->comment_ID;
 
-			$scheduler->schedule( JobRunner::ACTION_HOOK, $class, $args );
+			$id = $scheduler->schedule( JobRunner::ACTION_HOOK, $class, $args );
+			update_comment_meta( $job->comment_ID, 'status', self::STATUS_SCHEDULED );
+			update_comment_meta( $job->comment_ID, 'job_id', $id );
 		}
 
 	}

@@ -76,6 +76,8 @@ jQuery( document ).ready(($) => {
 					<table class="wp-list-table widefat fixed striped table-view-list">
 						<thead>
 							<tr>
+								<th>ID</th>
+								<th>Action</th>
 								<th>Job</th>
 								<th>Class</th>
 								<th>Status</th>
@@ -83,6 +85,8 @@ jQuery( document ).ready(($) => {
 						</thead>
 						<tbody>
 							<tr v-for="job in stage.jobs"  :key="job.name">
+								<td> {{ job.id }} </td>
+								<td> {{ job.meta.job_id }} </td>
 								<td> {{ job.name }} </td>
 								<td> <pre>{{ job.meta.job_class }}</pre> </td>
 								<td :class="['status', job.meta.status]"> {{ job.meta.status }} </td>

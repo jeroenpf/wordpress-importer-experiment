@@ -261,10 +261,26 @@ class Admin {
 		wp_send_json(
 			array(
 				'processed_actions' => $processed_actions,
+				'mem_usage'         => $this->formatBytes( memory_get_peak_usage() ),
+				'mem_current'       => $this->formatBytes( memory_get_usage() ),
 			)
 		);
 
 		exit();
+	}
+
+	function formatBytes( $bytes, $precision = 2 ) {
+		$units = array( 'B', 'KB', 'MB', 'GB', 'TB' );
+
+		$bytes = max( $bytes, 0 );
+		$pow   = floor( ( $bytes ? log( $bytes ) : 0 ) / log( 1024 ) );
+		$pow   = min( $pow, count( $units ) - 1 );
+
+		// Uncomment one of the following alternatives
+		// $bytes /= pow(1024, $pow);
+		$bytes /= ( 1 << ( 10 * $pow ) );
+
+		return round( $bytes, $precision ) . ' ' . $units[ $pow ];
 	}
 
 	public function setup_menu() {
@@ -314,6 +330,8 @@ class Admin {
 		$out = array();
 
 		foreach ( $stage->get_jobs( array(), 10 ) as $job ) {
+
+
 			$out[] = array(
 				'id'   => $job->comment_ID,
 				'name' => $job->comment_content,
@@ -363,7 +381,7 @@ class Admin {
 
 	protected function register_actions() {
 
-		$action = isset($_GET['action']) ? $_GET['action'] : null;
+		$action = isset( $_GET['action'] ) ? $_GET['action'] : null;
 
 		if ( ! empty( $_FILES ) && 'upload' === $_GET['action'] && 'importer-experiment' === $_GET['page'] ) {
 			$this->upload();

@@ -64,6 +64,12 @@ class Importer {
 				'show_ui'      => false,
 				'show_in_menu' => false,
 				'show_in_rest' => false,
+				'map_meta_cap' => true,
+				'hierarchical' => false,
+				'supports'     => array( 'title', 'editor', 'comments' ),
+				'rewrite'      => false,
+				'query_var'    => false,
+				'can_export'   => false,
 			)
 		);
 	}
