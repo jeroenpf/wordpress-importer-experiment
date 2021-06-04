@@ -45,7 +45,7 @@ class ActionScheduler extends Scheduler {
 			'args'      => $args,
 		);
 
-		return as_enqueue_async_action( $hook, $args, self::ACTION_GROUP );
+		as_enqueue_async_action( $hook, $args, self::ACTION_GROUP );
 	}
 
 	public function unschedule( $hook ) {

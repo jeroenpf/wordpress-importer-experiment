@@ -249,9 +249,8 @@ class ImportStage {
 			$class             = str_replace( '/', '\\', $class );
 			$args['stage_job'] = $job->comment_ID;
 
-			$id = $scheduler->schedule( JobRunner::ACTION_HOOK, $class, $args );
+			$scheduler->schedule( JobRunner::ACTION_HOOK, $class, $args );
 			update_comment_meta( $job->comment_ID, 'status', self::STATUS_SCHEDULED );
-			update_comment_meta( $job->comment_ID, 'job_id', $id );
 		}
 
 	}
