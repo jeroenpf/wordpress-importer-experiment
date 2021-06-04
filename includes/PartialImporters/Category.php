@@ -26,7 +26,7 @@ class Category extends PartialXMLImport {
 		// if the category already exists leave it alone
 		$existing_term_id = $this->get_existing_term_id( $category['category_nicename'], 'category' );
 		if( $existing_term_id ) {
-			$this->set_term_wxr_id( $existing_term_id, $category );
+			$this->set_import_meta($existing_term_id, $category, $this->import->get_id() );
 			return;
 		}
 

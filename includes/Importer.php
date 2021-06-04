@@ -72,6 +72,7 @@ class Importer {
 				'can_export'   => false,
 			)
 		);
+
 	}
 
 	/**

@@ -25,7 +25,7 @@ class Tag extends PartialXMLImport {
 	protected function import_tag( $tag ) {
 		$existing_term_id = $this->get_existing_term_id( $tag['tag_slug'], 'post_tag' );
 		if( $existing_term_id ) {
-			$this->set_term_wxr_id( $existing_term_id, $tag );
+			$this->set_import_meta($existing_term_id, $tag, $this->import->get_id() );
 			return;
 		}
 

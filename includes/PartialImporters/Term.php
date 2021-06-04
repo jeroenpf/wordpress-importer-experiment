@@ -24,7 +24,7 @@ class Term extends PartialXMLImport {
 	protected function import_term( $term ) {
 		$existing_term_id = $this->get_existing_term_id( $term['slug'], $term['term_taxonomy'] );
 		if( $existing_term_id ) {
-			$this->set_term_wxr_id($existing_term_id, $term);
+			$this->set_import_meta($existing_term_id, $term, $this->import->get_id() );
 			return;
 		}
 
@@ -54,7 +54,7 @@ class Term extends PartialXMLImport {
 			return;
 		}
 
-		$this->process_term_meta( $term, $id['term_id'] );
+		$this->process_term_meta( $term, $id['term_id'], $this->import->get_id() );
 	}
 
 
