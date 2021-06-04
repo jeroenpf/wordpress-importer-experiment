@@ -21,6 +21,13 @@ trait TermMetaTrait {
 		 */
 		$term['termmeta'] = apply_filters( 'wp_import_term_meta', $term['termmeta'], $term_id, $term );
 
+		if ( isset( $term['term_id'] ) ) {
+			$term['termmeta'] = array(
+				'meta_key' => 'wxr_id',
+				'meta_value' => $term['term_id']
+			);
+		}
+
 		if ( empty( $term['termmeta'] ) ) {
 			return;
 		}
@@ -58,5 +65,19 @@ trait TermMetaTrait {
 		}
 	}
 
+	protected function get_existing_term_id( $slug, $taxonomy ) {
+		$existing_term = term_exists( $slug, $taxonomy );
+		if ( !$existing_term ) {
+			return null;
+		}
+
+		return is_array( $existing_term ) ? $existing_term['term_id'] : $existing_term;
+	}
+
+	protected function set_term_wxr_id($term_id, $term) {
+		if ( isset( $term['term_id'] ) ) {
+			add_term_meta($term_id, 'wxr_id', $term['term_id'], true);
+		}
+	}
 
 }

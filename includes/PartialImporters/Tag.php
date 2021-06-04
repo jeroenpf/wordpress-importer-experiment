@@ -23,14 +23,9 @@ class Tag extends PartialXMLImport {
 	}
 
 	protected function import_tag( $tag ) {
-		$term_id = term_exists( $tag['tag_slug'], 'post_tag' );
-		if ( $term_id ) {
-			//          if ( is_array( $term_id ) ) {
-			//              $term_id = $term_id['term_id'];
-			//          }
-			//          if ( isset( $tag['term_id'] ) ) {
-			//              $this->processed_terms[ intval( $tag['term_id'] ) ] = (int) $term_id;
-			//          }
+		$existing_term_id = $this->get_existing_term_id( $tag['tag_slug'], 'post_tag' );
+		if( $existing_term_id ) {
+			$this->set_term_wxr_id( $existing_term_id, $tag );
 			return;
 		}
 
@@ -50,10 +45,6 @@ class Tag extends PartialXMLImport {
 			echo '<br />';
 			return;
 		}
-
-		//      if ( isset( $tag['term_id'] ) ) {
-		//          $this->processed_terms[ (int)  $tag['term_id']  ] = $id['term_id'];
-		//      }
 
 		$this->process_term_meta( $tag, $id['term_id'] );
 	}

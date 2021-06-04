@@ -22,14 +22,9 @@ class Term extends PartialXMLImport {
 	}
 
 	protected function import_term( $term ) {
-		$term_id = term_exists( $term['slug'], $term['term_taxonomy'] );
-		if ( $term_id ) {
-//			if ( is_array( $term_id ) ) {
-//				$term_id = $term_id['term_id'];
-//			}
-//			if ( isset( $term['term_id'] ) ) {
-//				$this->processed_terms[ intval( $term['term_id'] ) ] = (int) $term_id;
-//			}
+		$existing_term_id = $this->get_existing_term_id( $term['slug'], $term['term_taxonomy'] );
+		if( $existing_term_id ) {
+			$this->set_term_wxr_id($existing_term_id, $term);
 			return;
 		}
 
@@ -59,12 +54,9 @@ class Term extends PartialXMLImport {
 			return;
 		}
 
-//		if ( isset( $term['term_id'] ) ) {
-//			$this->processed_terms[ intval( $term['term_id'] ) ] = $id['term_id'];
-//		}
-
 		$this->process_term_meta( $term, $id['term_id'] );
 	}
+
 
 	public function parse( SimpleXMLElement $xml ) {
 

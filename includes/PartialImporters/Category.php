@@ -24,14 +24,9 @@ class Category extends PartialXMLImport {
 
 	protected function import_category( $category ) {
 		// if the category already exists leave it alone
-		$term_id = term_exists( $category['category_nicename'], 'category' );
-		if ( $term_id ) {
-			//          if ( is_array( $term_id ) ) {
-			//              $term_id = $term_id['term_id'];
-			//          }
-			//          if ( isset( $category['term_id'] ) ) {
-			//              $this->processed_terms[ (int) $category['term_id'] ] = (int) $term_id;
-			//          }
+		$existing_term_id = $this->get_existing_term_id( $category['category_nicename'], 'category' );
+		if( $existing_term_id ) {
+			$this->set_term_wxr_id( $existing_term_id, $category );
 			return;
 		}
 
@@ -60,10 +55,6 @@ class Category extends PartialXMLImport {
 			echo '<br />';
 			return;
 		}
-
-		//          if ( isset( $category['term_id'] ) ) {
-		//              $this->processed_terms[ (int) $category['term_id'] ] = $id;
-		//          }
 
 		$this->process_term_meta( $category, $id );
 	}
