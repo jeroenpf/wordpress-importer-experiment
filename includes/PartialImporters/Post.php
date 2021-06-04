@@ -2,6 +2,9 @@
 
 namespace ImporterExperiment\PartialImporters;
 
+// This file has dependencies on post.php and we need to make sure it is loaded.
+require_once ABSPATH . '/wp-admin/includes/post.php';
+
 use ImporterExperiment\Abstracts\PartialXMLImport;
 use SimpleXMLElement;
 use WP_Error;

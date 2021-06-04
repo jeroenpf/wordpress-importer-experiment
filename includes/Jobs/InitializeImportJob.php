@@ -81,7 +81,7 @@ class InitializeImportJob extends Job {
 			'posts'      => array(
 				'type'       => 'item',
 				'depends_on' => array( 'initialization', 'authors', 'categories', 'terms', 'tags' ),
-				'per_batch'  => 1,
+				'per_batch'  => 5,
 			),
 		);
 
