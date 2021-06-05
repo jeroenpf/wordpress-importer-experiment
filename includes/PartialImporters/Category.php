@@ -56,7 +56,7 @@ class Category extends PartialXMLImport {
 			return;
 		}
 
-		$this->process_term_meta( $category, $id );
+		$this->process_term_meta( $category, $id, $this->import->get_id() );
 	}
 
 	public function parse( SimpleXMLElement $xml ) {

@@ -46,7 +46,7 @@ class Tag extends PartialXMLImport {
 			return;
 		}
 
-		$this->process_term_meta( $tag, $id['term_id'] );
+		$this->process_term_meta( $tag, $id['term_id'], $this->import->get_id() );
 	}
 
 	public function parse( SimpleXMLElement $xml ) {

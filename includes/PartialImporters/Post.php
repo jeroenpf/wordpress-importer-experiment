@@ -24,6 +24,10 @@ class Post extends PartialXMLImport {
 	 */
 	private $url_remap;
 
+	private $is_orphaned = false;
+
+	protected $is_new_post = false;
+
 	public function import() {
 		$posts = apply_filters( 'wp_import_post', array( $this->data ) );
 
@@ -74,8 +78,84 @@ class Post extends PartialXMLImport {
 			return;
 		}
 
-		$post_type_object = get_post_type_object( $post['post_type'] );
+		$post_id = $this->handle_post( $post );
 
+		if ( is_wp_error( $post_id ) ) {
+			$post_type_object = get_post_type_object( $post['post_type'] );
+			printf(
+				__( 'Failed to import %s &#8220;%s&#8221;', 'wordpress-importer' ),
+				$post_type_object->labels->singular_name,
+				esc_html( $post['post_title'] )
+			);
+			if ( defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG ) {
+				echo ': ' . $post_id->get_error_message();
+			}
+			echo '<br />';
+			return;
+		}
+
+		$post_id = (int) $post_id;
+
+		// Set meta-data on the post that is used for processing later on.
+		$this->set_post_import_meta( $post, $post_id );
+
+		// Add terms to the post (if any).
+		$this->handle_post_terms( $post, $post_id );
+
+		// Add comments to the post (if any).
+		$this->handle_comments( $post, $post_id );
+
+		// Add postmeta to the post (if any).
+		$this->handle_post_meta( $post, $post_id );
+	}
+
+	/**
+	 * Return a post id or error if creating the post was unsuccessful.
+	 *
+	 * Will create a post or return the ID of an existing post.
+	 *
+	 * @param $post
+	 *
+	 * @return int|WP_Error
+	 */
+	protected function handle_post( $post ) {
+
+		$existsing_post_id = $this->get_existing_post_id( $post );
+		$post_id           = $existsing_post_id ?: $this->handle_new_post( $post );
+
+		// Stick the post.
+		if ( true === (bool) $post['is_sticky'] ) {
+			stick_post( $post_id );
+		}
+
+		// If the post is existing and of type attachment, we need to
+		// make sure the urls will be remapped later.
+		if ( $existsing_post_id && 'attachment' === $post['type'] ) {
+			$this->set_existing_post_attachment_url_mapping( $post, $post_id );
+		}
+
+		return $post_id;
+	}
+
+	/**
+	 * Set the mapping for an existing attachment so that it will be processed
+	 * during the remapping phase.
+	 *
+	 * @param $post
+	 * @param $post_id
+	 */
+	protected function set_existing_post_attachment_url_mapping( $post, $post_id ) {
+		$attachment_url = $this->sanitize_attachment_url( $post );
+		$attachment     = get_post( $post_id, 'ARRAY_A' );
+		$this->register_url_mapping( $attachment_url, $attachment, $post['guid'] );
+	}
+
+	/**
+	 * @param $post
+	 *
+	 * @return mixed|void|null
+	 */
+	protected function get_existing_post_id( $post ) {
 		$post_exists = post_exists( $post['post_title'], '', $post['post_date'] );
 
 		/**
@@ -91,231 +171,254 @@ class Post extends PartialXMLImport {
 		 * @param array $post         The post array to be inserted.
 		 */
 		$post_exists = apply_filters( 'wp_import_existing_post', $post_exists, $post );
-		$is_orphaned = false;
 
-		if ( $post_exists && get_post_type( $post_exists ) == $post['post_type'] ) {
+		$exists = $post_exists && get_post_type( $post_exists ) === $post['post_type']
+			? $post_exists
+			: null;
+
+		// Log it.
+		if ( $exists ) {
+			$post_type_object = get_post_type_object( $post['post_type'] );
 			printf( __( '%s &#8220;%s&#8221; already exists.', 'wordpress-importer' ), $post_type_object->labels->singular_name, esc_html( $post['post_title'] ) );
-			echo '<br />';
-			$comment_post_ID = $post_id = $post_exists;
-			$this->set_post_wxr_id( (int) $post_exists, (int) $post['post_id'] );
-		} else {
-			$post_parent = (int) $post['post_parent'];
 
-			if ( $post_parent ) {
-				$processed_parent = $this->get_post_id_by_wxr_id( $post_parent );
-				$post_parent      = $processed_parent ?: 0;
-				$is_orphaned      = null === $processed_parent;
-			}
-
-			// map the post author
-			$author = sanitize_user( $post['post_author'], true );
-			if ( isset( $this->author_mapping[ $author ] ) ) {
-				$author = $this->author_mapping[ $author ];
-			} else {
-				$author = (int) get_current_user_id();
-			}
-
-			$postdata = array(
-				'import_id'      => $post['post_id'],
-				'post_author'    => $author,
-				'post_date'      => $post['post_date'],
-				'post_date_gmt'  => $post['post_date_gmt'],
-				'post_content'   => $post['post_content'],
-				'post_excerpt'   => $post['post_excerpt'],
-				'post_title'     => $post['post_title'],
-				'post_status'    => $post['status'],
-				'post_name'      => $post['post_name'],
-				'comment_status' => $post['comment_status'],
-				'ping_status'    => $post['ping_status'],
-				'guid'           => $post['guid'],
-				'post_parent'    => $post_parent,
-				'menu_order'     => $post['menu_order'],
-				'post_type'      => $post['post_type'],
-				'post_password'  => $post['post_password'],
-			);
-
-			$original_post_ID = $post['post_id'];
-			$postdata         = apply_filters( 'wp_import_post_data_processed', $postdata, $post );
-
-			$postdata = wp_slash( $postdata );
-
-			if ( 'attachment' === $postdata['post_type'] ) {
-				$comment_post_ID = $post_id = $this->handle_attachment( $postdata, $post );
-			} else {
-				$comment_post_ID = $post_id = wp_insert_post( $postdata, true );
-				do_action( 'wp_import_insert_post', $post_id, $original_post_ID, $postdata, $post );
-			}
-
-			if ( is_wp_error( $post_id ) ) {
-				printf(
-					__( 'Failed to import %s &#8220;%s&#8221;', 'wordpress-importer' ),
-					$post_type_object->labels->singular_name,
-					esc_html( $post['post_title'] )
-				);
-				if ( defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG ) {
-					echo ': ' . $post_id->get_error_message();
-				}
-				echo '<br />';
-				return;
-			}
-
-			if ( true === (bool) $post['is_sticky'] ) {
-				stick_post( $post_id );
-			}
 		}
 
-		// Set the post to orphaned if a post with the $parent_id was not found.
-		// Orphaned posts will be fixed later.
-		if ( $is_orphaned ) {
-			$this->set_post_orphaned( $post_id, $post_parent );
+		return $exists;
+	}
+
+	/**
+	 * @param $post
+	 *
+	 * @return int|WP_Error
+	 */
+	protected function handle_new_post( $post ) {
+
+		$this->is_new_post = true;
+
+		$postdata = $this->get_post_data( $post );
+
+		return 'attachment' === $postdata['post_type']
+			? $this->handle_attachment( $postdata, $post )
+			: $this->add_new_post( $postdata, $post );
+	}
+
+	/**
+	 * @param $postdata
+	 * @param $post
+	 *
+	 * @return int|WP_Error
+	 */
+	protected function add_new_post( $postdata, $post ) {
+		$post_id = wp_insert_post( $postdata, true );
+		do_action( 'wp_import_insert_post', $post_id, $post['post_id'], $postdata, $post );
+
+		return $post_id;
+	}
+
+	protected function get_post_data( $post ) {
+
+		$data = array(
+			'import_id'      => $post['post_id'],
+			'post_author'    => $this->get_author_id( $post ),
+			'post_date'      => $post['post_date'],
+			'post_date_gmt'  => $post['post_date_gmt'],
+			'post_content'   => $post['post_content'],
+			'post_excerpt'   => $post['post_excerpt'],
+			'post_title'     => $post['post_title'],
+			'post_status'    => $post['status'],
+			'post_name'      => $post['post_name'],
+			'comment_status' => $post['comment_status'],
+			'ping_status'    => $post['ping_status'],
+			'guid'           => $post['guid'],
+			'post_parent'    => $this->get_post_parent( $post ),
+			'menu_order'     => $post['menu_order'],
+			'post_type'      => $post['post_type'],
+			'post_password'  => $post['post_password'],
+		);
+
+		$postdata = apply_filters( 'wp_import_post_data_processed', $data, $post );
+
+		return wp_slash( $postdata );
+	}
+
+	protected function get_post_parent( $post ) {
+
+		$post_parent = (int) $post['post_parent'];
+
+		if ( $post_parent ) {
+			$processed_parent  = $this->get_post_id_by_wxr_id( $post_parent );
+			$post_parent       = $processed_parent ?: 0;
+			$this->is_orphaned = null === $processed_parent;
 		}
 
-		// map pre-import ID to local ID
-		$this->set_post_wxr_id( (int) $post_id, (int) $post['post_id'] );
+		return $post_parent;
 
+	}
+
+	protected function handle_post_terms( $post, $post_id ) {
 		if ( ! isset( $post['terms'] ) ) {
 			$post['terms'] = array();
 		}
 
 		$post['terms'] = apply_filters( 'wp_import_post_terms', $post['terms'], $post_id, $post );
 
-		// add categories, tags and other terms
-		if ( ! empty( $post['terms'] ) ) {
-			$terms_to_set = array();
-			foreach ( $post['terms'] as $term ) {
-				// back compat with WXR 1.0 map 'tag' to 'post_tag'
-				$taxonomy    = ( 'tag' === $term['domain'] ) ? 'post_tag' : $term['domain'];
-				$term_exists = term_exists( $term['slug'], $taxonomy );
-				$term_id     = is_array( $term_exists ) ? $term_exists['term_id'] : $term_exists;
-				if ( ! $term_id ) {
-					$t = wp_insert_term( $term['name'], $taxonomy, array( 'slug' => $term['slug'] ) );
-					if ( ! is_wp_error( $t ) ) {
-						$term_id = $t['term_id'];
-						do_action( 'wp_import_insert_term', $t, $term, $post_id, $post );
-					} else {
-						printf( __( 'Failed to import %s %s', 'wordpress-importer' ), esc_html( $taxonomy ), esc_html( $term['name'] ) );
-						if ( defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG ) {
-							echo ': ' . $t->get_error_message();
-						}
-						echo '<br />';
-						do_action( 'wp_import_insert_term_failed', $t, $term, $post_id, $post );
-						continue;
-					}
-				}
-				$terms_to_set[ $taxonomy ][] = (int) $term_id;
-			}
-
-			foreach ( $terms_to_set as $tax => $ids ) {
-				$tt_ids = wp_set_post_terms( $post_id, $ids, $tax );
-				do_action( 'wp_import_set_post_terms', $tt_ids, $ids, $tax, $post_id, $post );
-			}
-			unset( $post['terms'], $terms_to_set );
+		if ( empty( $post['terms'] ) ) {
+			return;
 		}
 
+		// add categories, tags and other terms
+
+		$terms_to_set = array();
+		foreach ( $post['terms'] as $term ) {
+			// back compat with WXR 1.0 map 'tag' to 'post_tag'
+			$taxonomy    = ( 'tag' === $term['domain'] ) ? 'post_tag' : $term['domain'];
+			$term_exists = term_exists( $term['slug'], $taxonomy );
+			$term_id     = is_array( $term_exists ) ? $term_exists['term_id'] : $term_exists;
+			if ( ! $term_id ) {
+				$t = wp_insert_term( $term['name'], $taxonomy, array( 'slug' => $term['slug'] ) );
+				if ( ! is_wp_error( $t ) ) {
+					$term_id = $t['term_id'];
+					do_action( 'wp_import_insert_term', $t, $term, $post_id, $post );
+				} else {
+					printf( __( 'Failed to import %s %s', 'wordpress-importer' ), esc_html( $taxonomy ), esc_html( $term['name'] ) );
+					if ( defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG ) {
+						echo ': ' . $t->get_error_message();
+					}
+					echo '<br />';
+					do_action( 'wp_import_insert_term_failed', $t, $term, $post_id, $post );
+					continue;
+				}
+			}
+			$terms_to_set[ $taxonomy ][] = (int) $term_id;
+		}
+
+		foreach ( $terms_to_set as $tax => $ids ) {
+			$tt_ids = wp_set_post_terms( $post_id, $ids, $tax );
+			do_action( 'wp_import_set_post_terms', $tt_ids, $ids, $tax, $post_id, $post );
+		}
+		unset( $terms_to_set );
+
+	}
+
+	protected function handle_comments( $post, $post_id ) {
 		if ( ! isset( $post['comments'] ) ) {
 			$post['comments'] = array();
 		}
 
 		$post['comments'] = apply_filters( 'wp_import_post_comments', $post['comments'], $post_id, $post );
 
-		// add/update comments
-		if ( ! empty( $post['comments'] ) ) {
-			$num_comments      = 0;
-			$inserted_comments = array();
-			foreach ( $post['comments'] as $comment ) {
-				$comment_id                                    = $comment['comment_id'];
-				$newcomments[ $comment_id ]['comment_post_ID'] = $comment_post_ID;
-				$newcomments[ $comment_id ]['comment_author']  = $comment['comment_author'];
-				$newcomments[ $comment_id ]['comment_author_email'] = $comment['comment_author_email'];
-				$newcomments[ $comment_id ]['comment_author_IP']    = $comment['comment_author_IP'];
-				$newcomments[ $comment_id ]['comment_author_url']   = $comment['comment_author_url'];
-				$newcomments[ $comment_id ]['comment_date']         = $comment['comment_date'];
-				$newcomments[ $comment_id ]['comment_date_gmt']     = $comment['comment_date_gmt'];
-				$newcomments[ $comment_id ]['comment_content']      = $comment['comment_content'];
-				$newcomments[ $comment_id ]['comment_approved']     = $comment['comment_approved'];
-				$newcomments[ $comment_id ]['comment_type']         = $comment['comment_type'];
-				$newcomments[ $comment_id ]['comment_parent']       = $comment['comment_parent'];
-				$newcomments[ $comment_id ]['commentmeta']          = isset( $comment['commentmeta'] ) ? $comment['commentmeta'] : array();
-				if ( isset( $this->processed_authors[ $comment['comment_user_id'] ] ) ) {
-					$newcomments[ $comment_id ]['user_id'] = $this->processed_authors[ $comment['comment_user_id'] ];
-				}
-			}
-			ksort( $newcomments );
-
-			foreach ( $newcomments as $key => $comment ) {
-				// if this is a new post we can skip the comment_exists() check
-				if ( ! $post_exists || ! comment_exists( $comment['comment_author'], $comment['comment_date'] ) ) {
-					if ( isset( $inserted_comments[ $comment['comment_parent'] ] ) ) {
-						$comment['comment_parent'] = $inserted_comments[ $comment['comment_parent'] ];
-					}
-
-					$comment_data = wp_slash( $comment );
-					unset( $comment_data['commentmeta'] ); // Handled separately, wp_insert_comment() also expects `comment_meta`.
-					$comment_data = wp_filter_comment( $comment_data );
-
-					$inserted_comments[ $key ] = wp_insert_comment( $comment_data );
-
-					do_action( 'wp_import_insert_comment', $inserted_comments[ $key ], $comment, $comment_post_ID, $post );
-
-					foreach ( $comment['commentmeta'] as $meta ) {
-						$value = maybe_unserialize( $meta['value'] );
-
-						add_comment_meta( $inserted_comments[ $key ], wp_slash( $meta['key'] ), wp_slash_strings_only( $value ) );
-					}
-
-					$num_comments++;
-				}
-			}
-			unset( $newcomments, $inserted_comments, $post['comments'] );
+		if ( empty( $post['comments'] ) ) {
+			return;
 		}
 
+		// add/update comments
+		$inserted_comments = array();
+		foreach ( $post['comments'] as $comment ) {
+			$comment_id                                    = $comment['comment_id'];
+			$newcomments[ $comment_id ]['comment_post_ID'] = $post_id;
+			$newcomments[ $comment_id ]['comment_author']  = $comment['comment_author'];
+			$newcomments[ $comment_id ]['comment_author_email'] = $comment['comment_author_email'];
+			$newcomments[ $comment_id ]['comment_author_IP']    = $comment['comment_author_IP'];
+			$newcomments[ $comment_id ]['comment_author_url']   = $comment['comment_author_url'];
+			$newcomments[ $comment_id ]['comment_date']         = $comment['comment_date'];
+			$newcomments[ $comment_id ]['comment_date_gmt']     = $comment['comment_date_gmt'];
+			$newcomments[ $comment_id ]['comment_content']      = $comment['comment_content'];
+			$newcomments[ $comment_id ]['comment_approved']     = $comment['comment_approved'];
+			$newcomments[ $comment_id ]['comment_type']         = $comment['comment_type'];
+			$newcomments[ $comment_id ]['comment_parent']       = $comment['comment_parent'];
+			$newcomments[ $comment_id ]['commentmeta']          = isset( $comment['commentmeta'] ) ? $comment['commentmeta'] : array();
+			if ( isset( $this->processed_authors[ $comment['comment_user_id'] ] ) ) {
+				$newcomments[ $comment_id ]['user_id'] = $this->processed_authors[ $comment['comment_user_id'] ];
+			}
+		}
+		ksort( $newcomments );
+
+		foreach ( $newcomments as $key => $comment ) {
+			// if this is a new post we can skip the comment_exists() check
+			if ( ! $this->is_new_post || ! comment_exists( $comment['comment_author'], $comment['comment_date'] ) ) {
+				if ( isset( $inserted_comments[ $comment['comment_parent'] ] ) ) {
+					$comment['comment_parent'] = $inserted_comments[ $comment['comment_parent'] ];
+				}
+
+				$comment_data = wp_slash( $comment );
+				unset( $comment_data['commentmeta'] ); // Handled separately, wp_insert_comment() also expects `comment_meta`.
+				$comment_data = wp_filter_comment( $comment_data );
+
+				$inserted_comments[ $key ] = wp_insert_comment( $comment_data );
+
+				do_action( 'wp_import_insert_comment', $inserted_comments[ $key ], $comment, $post_id, $post );
+
+				foreach ( $comment['commentmeta'] as $meta ) {
+					$value = maybe_unserialize( $meta['value'] );
+
+					add_comment_meta( $inserted_comments[ $key ], wp_slash( $meta['key'] ), wp_slash_strings_only( $value ) );
+				}
+			}
+		}
+		unset( $newcomments, $inserted_comments, $post['comments'] );
+
+	}
+
+	protected function handle_post_meta( $post, $post_id ) {
 		if ( ! isset( $post['postmeta'] ) ) {
 			$post['postmeta'] = array();
 		}
 
-		// Set the import ID as meta.
-		$post['postmeta'][] = array(
-			'key'   => 'import_id',
-			'value' => $this->import->get_id(),
-		);
-
 		$post['postmeta'] = apply_filters( 'wp_import_post_meta', $post['postmeta'], $post_id, $post );
 
 		// add/update post meta
-		if ( ! empty( $post['postmeta'] ) ) {
-			foreach ( $post['postmeta'] as $meta ) {
-				$key   = apply_filters( 'import_post_meta_key', $meta['key'], $post_id, $post );
-				$value = false;
+		if ( empty( $post['postmeta'] ) ) {
+			return;
+		}
 
-				if ( '_edit_last' === $key ) {
-					if ( isset( $this->processed_authors[ (int) $meta['value'] ] ) ) {
-						$value = $this->processed_authors[ (int) $meta['value'] ];
-					} else {
-						$key = false;
-					}
+		foreach ( $post['postmeta'] as $meta ) {
+			$key   = apply_filters( 'import_post_meta_key', $meta['key'], $post_id, $post );
+			$value = false;
+
+			if ( '_edit_last' === $key ) {
+				if ( isset( $this->processed_authors[ (int) $meta['value'] ] ) ) {
+					$value = $this->processed_authors[ (int) $meta['value'] ];
+				} else {
+					$key = false;
+				}
+			}
+
+			if ( $key ) {
+				// export gets meta straight from the DB so could have a serialized string
+				if ( ! $value ) {
+					$value = maybe_unserialize( $meta['value'] );
 				}
 
-				if ( $key ) {
-					// export gets meta straight from the DB so could have a serialized string
-					if ( ! $value ) {
-						$value = maybe_unserialize( $meta['value'] );
-					}
+				add_post_meta( $post_id, wp_slash( $key ), wp_slash_strings_only( $value ) );
 
-					add_post_meta( $post_id, wp_slash( $key ), wp_slash_strings_only( $value ) );
+				do_action( 'import_post_meta', $post_id, $key, $value );
 
-					do_action( 'import_post_meta', $post_id, $key, $value );
-
-					// if the post has a featured image, take note of this in case of remap
-					if ( '_thumbnail_id' === $key ) {
-						add_post_meta( $post_id, 'featured_image_wxr_id', (int) $value );
-					}
+				// if the post has a featured image, take note of this in case of remap
+				if ( '_thumbnail_id' === $key ) {
+					add_post_meta( $post_id, 'featured_image_wxr_id', (int) $value );
 				}
 			}
 		}
 	}
 
+	/**
+	 * @param $post Post array from the WXR.
+	 */
+	protected function get_author_id( $post ) {
+		// map the post author
+		$author = sanitize_user( $post['post_author'], true );
+
+		$id = (int) get_current_user_id();
+
+		if ( isset( $this->author_mapping[ $author ] ) ) {
+			$id = $this->author_mapping[ $author ];
+		}
+
+		return $id;
+	}
+
 	protected function handle_attachment( $postdata, $post ) {
-		$remote_url = ! empty( $post['attachment_url'] ) ? $post['attachment_url'] : $post['guid'];
+		$remote_url = $this->sanitize_attachment_url( $post );
 
 		// try to use _wp_attached file for upload folder placement to ensure the same location as the export site
 		// e.g. location is 2003/05/image.jpg but the attachment post_date is 2010/09, see media_handle_upload()
@@ -334,12 +437,32 @@ class Post extends PartialXMLImport {
 	}
 
 	/**
+	 * @param $post
+	 *
+	 * @return string
+	 *
+	 * @todo Return null if we could not get url, probably log an error if an attachment post
+	 *       has no url that we can use.
+	 */
+	protected function sanitize_attachment_url( $post ) {
+		$url = ! empty( $post['attachment_url'] ) ? $post['attachment_url'] : $post['guid'];
+
+		// if the URL is absolute, but does not contain address, then upload it assuming base_site_url
+		if ( preg_match( '|^/[\w\W]+$|', $url ) ) {
+			$base_url = $this->import->get_meta( 'base_site_url' );
+			$url      = rtrim( $base_url, '/' ) . $url;
+		}
+
+		return $url;
+	}
+
+	/**
 	 * @todo Implement fetch attachment option
 	 *
 	 * @param $post
 	 * @param $remote_url
 	 *
-	 * @return array|int|WP_Error
+	 * @return int|WP_Error
 	 */
 	protected function process_attachment( $post, $url ) {
 		//      if ( ! $this->fetch_attachments ) {
@@ -348,13 +471,6 @@ class Post extends PartialXMLImport {
 		//              __( 'Fetching attachments is not enabled', 'wordpress-importer' )
 		//          );
 		//      }
-
-		$base_url = $this->import->get_meta( 'base_site_url' );
-
-		// if the URL is absolute, but does not contain address, then upload it assuming base_site_url
-		if ( preg_match( '|^/[\w\W]+$|', $url ) ) {
-			$url = rtrim( $base_url, '/' ) . $url;
-		}
 
 		$upload = $this->fetch_remote_file( $url, $post );
 		if ( is_wp_error( $upload ) ) {
@@ -368,26 +484,45 @@ class Post extends PartialXMLImport {
 			return new WP_Error( 'attachment_processing_error', __( 'Invalid file type', 'wordpress-importer' ) );
 		}
 
+		$wxr_guid     = $post['guid'];
 		$post['guid'] = $upload['url'];
 
 		// as per wp-admin/includes/upload.php
 		$post_id = wp_insert_attachment( $post, $upload['file'] );
 		wp_update_attachment_metadata( $post_id, wp_generate_attachment_metadata( $post_id, $upload['file'] ) );
 
+		$this->register_url_mapping( $url, $post, $wxr_guid );
+
+		return $post_id;
+	}
+
+	/**
+	 * Register and saves the URL mapping for attachments.
+	 *
+	 * @param $original_url
+	 * @param $post
+	 * @param null $wxr_guid
+	 */
+	protected function register_url_mapping( $original_url, $post, $wxr_guid = null ) {
+		// keep track of the old and new urls so we can substitute them later
+		$this->url_remap[ $original_url ] = $post['guid'];
+
+		if ( $wxr_guid ) {
+			$this->url_remap[ $wxr_guid ] = $post['guid']; // r13735, really needed?
+		}
+
 		// remap resized image URLs, works by stripping the extension and remapping the URL stub.
-		if ( preg_match( '!^image/!', $info['type'] ) ) {
-			$parts = pathinfo( $url );
+		if ( preg_match( '!^image/!', $post['post_mime_type'] ) ) {
+			$parts = pathinfo( $original_url );
 			$name  = basename( $parts['basename'], ".{$parts['extension']}" ); // PATHINFO_FILENAME in PHP 5.2
 
-			$parts_new = pathinfo( $upload['url'] );
+			$parts_new = pathinfo( $post['guid'] );
 			$name_new  = basename( $parts_new['basename'], ".{$parts_new['extension']}" );
 
 			$this->url_remap[ $parts['dirname'] . '/' . $name ] = $parts_new['dirname'] . '/' . $name_new;
 		}
 
 		$this->save_url_remap();
-
-		return $post_id;
 	}
 
 	/**
@@ -562,9 +697,6 @@ class Post extends PartialXMLImport {
 			'error' => false,
 		);
 
-		// keep track of the old and new urls so we can substitute them later
-		$this->url_remap[ $url ]          = $upload['url'];
-		$this->url_remap[ $post['guid'] ] = $upload['url']; // r13735, really needed?
 		// keep track of the destination if the remote url is redirected somewhere else
 		if ( isset( $headers['x-final-location'] ) && $headers['x-final-location'] != $url ) {
 			$this->url_remap[ $headers['x-final-location'] ] = $upload['url'];
@@ -582,9 +714,17 @@ class Post extends PartialXMLImport {
 
 		$posts = get_posts(
 			array(
-				'meta_key'   => 'wxr_id',
-				'meta_value' => $id,
 				'fields'     => 'ids',
+				'meta_query' => array(
+					array(
+						'key'   => 'wxr_id',
+						'value' => $id,
+					),
+					array(
+						'key'   => 'import_id',
+						'value' => $this->import->get_id(),
+					),
+				),
 			)
 		);
 
@@ -592,12 +732,17 @@ class Post extends PartialXMLImport {
 
 	}
 
-	protected function set_post_wxr_id( $post_id, $wxr_id ) {
-		add_post_meta( $post_id, 'wxr_id', $wxr_id );
-	}
+	protected function set_post_import_meta( $post, $post_id ) {
+		$wxr_id = (int) $post['post_id'];
 
-	protected function set_post_orphaned( $post_id, $wxr_parent_id ) {
-		add_post_meta( $post_id, 'orphaned_wxr_id', $wxr_parent_id );
+		add_post_meta( $post_id, 'import_id', $this->import->get_id(), true );
+		add_post_meta( $post_id, 'wxr_id', $wxr_id, true );
+
+		if ( $this->is_orphaned ) {
+			add_post_meta( $post_id, 'orphaned_wxr_id', (int) $post['post_parent'], true );
+		}
+
+		$this->save_url_remap();
 	}
 
 	protected function parse( SimpleXMLElement $xml ) {
