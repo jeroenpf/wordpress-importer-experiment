@@ -89,7 +89,7 @@ class AttachmentUrlMapJob extends Job {
 
 		foreach ( $results as $result ) {
 			$remap_urls[ $result->comment_content ] = $result->meta_value;
-			wp_delete_comment( $result->comment_ID );
+			wp_delete_comment( $result->comment_ID, true );
 		}
 
 		return $remap_urls;

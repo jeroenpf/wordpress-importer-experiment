@@ -123,11 +123,10 @@ class ImportStage {
 	}
 
 	/**
-	 * Set the status of the stage to pending and schedule the jobs in the stage.
+	 * Set the status of the stage to pending.
 	 */
 	public function release() {
 		$this->set_status( self::STATUS_PENDING );
-		$this->schedule_jobs();
 	}
 
 	public function set_status( $status ) {

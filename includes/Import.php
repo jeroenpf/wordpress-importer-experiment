@@ -82,6 +82,7 @@ class Import {
 		$stage->add_job( InitializeImportJob::class );
 
 		$stage->release();
+		$stage->schedule_jobs();
 
 		$this->set_status( self::STATUS_RUNNING );
 	}

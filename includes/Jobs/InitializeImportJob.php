@@ -49,6 +49,8 @@ class InitializeImportJob extends Job {
 
 		// Create the finalize job.
 		$this->create_finalize_job();
+
+		sleep( 20 );
 	}
 
 	protected function create_partial_import_jobs( $wxr_file_path ) {
@@ -111,7 +113,18 @@ class InitializeImportJob extends Job {
 			$total_objects += $this->indexer->get_count( $settings['type'] );
 		}
 
+
 		return $total_objects;
+	}
+
+
+	/**
+	 * @param ImportStage[] $stages
+	 */
+	protected function release_stages( $stages ) {
+		foreach ( $stages as $stage ) {
+			$stage->release();
+		}
 	}
 
 	protected function create_attachment_jobs() {

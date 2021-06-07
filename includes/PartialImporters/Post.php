@@ -130,7 +130,7 @@ class Post extends PartialXMLImport {
 
 		// If the post is existing and of type attachment, we need to
 		// make sure the urls will be remapped later.
-		if ( $existsing_post_id && 'attachment' === $post['type'] ) {
+		if ( $existsing_post_id && 'attachment' === $post['post_type'] ) {
 			$this->set_existing_post_attachment_url_mapping( $post, $post_id );
 		}
 
@@ -512,6 +512,23 @@ class Post extends PartialXMLImport {
 		}
 
 		// remap resized image URLs, works by stripping the extension and remapping the URL stub.
+			$this->remap_resized_images( $post, $original_url );
+
+		// If we have a guid from the WXR, we also want to add it to the list of
+		// image url remappings, stripping the extension.
+		if ( $wxr_guid ) {
+			$this->remap_resized_images( $post, $wxr_guid );
+		}
+
+		$this->save_url_remap();
+	}
+
+	/**
+	 * Remap resized image URLs, works by stripping the extension and remapping the URL stub.
+	 * @param $post
+	 * @param $original_url
+	 */
+	protected function remap_resized_images( $post, $original_url ) {
 		if ( preg_match( '!^image/!', $post['post_mime_type'] ) ) {
 			$parts = pathinfo( $original_url );
 			$name  = basename( $parts['basename'], ".{$parts['extension']}" ); // PATHINFO_FILENAME in PHP 5.2
@@ -521,8 +538,6 @@ class Post extends PartialXMLImport {
 
 			$this->url_remap[ $parts['dirname'] . '/' . $name ] = $parts_new['dirname'] . '/' . $name_new;
 		}
-
-		$this->save_url_remap();
 	}
 
 	/**
