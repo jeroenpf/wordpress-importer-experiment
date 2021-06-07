@@ -516,7 +516,7 @@ class Post extends PartialXMLImport {
 
 		// If we have a guid from the WXR, we also want to add it to the list of
 		// image url remappings, stripping the extension.
-		if ( $wxr_guid ) {
+		if ( $wxr_guid && $wxr_guid !== $original_url ) {
 			$this->remap_resized_images( $post, $wxr_guid );
 		}
 

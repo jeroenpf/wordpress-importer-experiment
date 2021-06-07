@@ -184,5 +184,9 @@ class Import {
 
 	}
 
+	public function log( $message, $level, $context = array() ) {
+
+	}
+
 
 }

@@ -25,8 +25,6 @@ class AttachmentUrlMapJob extends Job {
 	 */
 	public function run() {
 
-		sleep( 5 );
-
 		// A limit of attachments to handle per job execution to prevent timeouts on certain environments.
 		$limit = apply_filters( 'importer_attachment_remap_limit', 100 );
 
@@ -40,6 +38,7 @@ class AttachmentUrlMapJob extends Job {
 
 		// If the number of fetched remap url is equal to the limit, we add another job to see if there
 		// are more urls to process.
+
 		if ( count( $remap_urls ) === $limit ) {
 			$this->add_next_job();
 		}
@@ -53,7 +52,10 @@ class AttachmentUrlMapJob extends Job {
 	protected function remap_urls( $map ) {
 		global $wpdb;
 
-		foreach ( $map as $from => $to ) {
+		foreach ( $map as $item ) {
+
+			$from = $item['old'];
+			$to   = $item['new'];
 
 			// remap urls in post_content
 			$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->posts} SET post_content = REPLACE(post_content, %s, %s)", $from, $to ) );
@@ -72,7 +74,7 @@ class AttachmentUrlMapJob extends Job {
 	 *
 	 * @return array An array of old => new urls.
 	 */
-	protected function get_remap_urls( $limit = 50 ) {
+	protected function get_remap_urls( $limit ) {
 
 		global $wpdb;
 
@@ -88,7 +90,10 @@ class AttachmentUrlMapJob extends Job {
 		$remap_urls = array();
 
 		foreach ( $results as $result ) {
-			$remap_urls[ $result->comment_content ] = $result->meta_value;
+			$remap_urls[] = array(
+				'old' => $result->comment_content,
+				'new' => $result->meta_value,
+			);
 			wp_delete_comment( $result->comment_ID, true );
 		}
 
