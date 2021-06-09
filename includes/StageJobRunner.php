@@ -2,15 +2,26 @@
 
 namespace ImporterExperiment;
 
-use ImporterExperiment\Abstracts\JobRunner as JobRunnerAbstract;
-use ImporterExperiment\Abstracts\Scheduler;
+use ImporterExperiment\Abstracts\StageJobRunner as JobRunnerAbstract;
+use ImporterExperiment\Abstracts\Dispatcher;
 use ImporterExperiment\Interfaces\Job;
-use ImporterExperiment\Abstracts\Job as JobAbstract;
-use WP_Comment;
+use ImporterExperiment\Abstracts\StageJob as JobAbstract;
 
-class JobRunner extends JobRunnerAbstract {
-
-	const ACTION_HOOK = 'importer_experiment_run_job';
+/**
+ * Class StageJobRunner
+ *
+ * The Stage Job Runner runs jobs in dependant stages.
+ *
+ * It registers an action hook that will run a specific job and schedule
+ * more if there are any.
+ *
+ * Scheduling subsequent jobs depends on the state of each stage. If a stage depends
+ * on another that has not completed yet, jobs in that stage will not be scheduled.
+ * All pending jobs in a stage that has all its dependencies met, will be scheduled.
+ *
+ * @package ImporterExperiment
+ */
+class StageJobRunner extends JobRunnerAbstract {
 
 	/**
 	 * @var Job
@@ -101,7 +112,7 @@ class JobRunner extends JobRunnerAbstract {
 
 		// Schedule jobs for active stages.
 		foreach ( $active_stages as $active_stage ) {
-			$active_stage->schedule_jobs();
+			$active_stage->dispatch_jobs();
 		}
 
 		// If there are no more active stages, mark the import as complete.
@@ -128,21 +139,21 @@ class JobRunner extends JobRunnerAbstract {
 	public static function execute_job( $job_class, $job_meta ) {
 
 		if ( ! class_exists( $job_class ) ) {
-			throw new Exception( sprintf( __( 'Job class "%s" does not exist', 'wordpress-importer' ), $job_class ) );
+			throw new ImporterException( sprintf( __( 'Job class "%s" does not exist', 'wordpress-importer' ), $job_class ) );
 		}
 
 		$job = get_comment( $job_meta['stage_job'] );
 
 		if ( ! $job ) {
-			throw new Exception( sprintf( __( 'Could not find stage job %d', 'wordpress-importer' ), $job_meta['stage_job'] ) );
+			throw new ImporterException( sprintf( __( 'Could not find stage job %d', 'wordpress-importer' ), $job_meta['stage_job'] ) );
 		}
 
-		$import = new Import( $job->comment_post_ID, Scheduler::instance() );
+		$import = Importer::instance()->get_import_by_id( $job->comment_post_ID );
 
 		$stage_comment = get_comment( $job->comment_parent );
 
 		if ( ! $stage_comment ) {
-			throw new Exception( sprintf( __( 'Could not find stage %d', 'wordpress-importer' ), $job->comment_parent ) );
+			throw new ImporterException( sprintf( __( 'Could not find stage %d', 'wordpress-importer' ), $job->comment_parent ) );
 		}
 
 		$stage = new ImportStage( $stage_comment, $import );

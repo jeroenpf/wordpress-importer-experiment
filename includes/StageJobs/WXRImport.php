@@ -1,9 +1,10 @@
 <?php
 
-namespace ImporterExperiment\Jobs;
+namespace ImporterExperiment\StageJobs;
 
-use ImporterExperiment\Abstracts\Job;
-use ImporterExperiment\Exception;
+use ImporterExperiment\Abstracts\StageJob;
+use ImporterExperiment\Import;
+use ImporterExperiment\ImporterException;
 use ImporterExperiment\ImportStage;
 use ImporterExperiment\Interfaces\PartialImport;
 use ImporterExperiment\PartialImporters\Author;
@@ -12,15 +13,19 @@ use ImporterExperiment\PartialImporters\Post;
 use ImporterExperiment\PartialImporters\Tag;
 use ImporterExperiment\PartialImporters\Term;
 
+
+
 /**
- * Class WXRImportJob
+ * Class WXRImport
  *
- * A WXRImportJob gets a byte-range stored as term meta and reads the given byte-range from the
- * WXR file and parses and imports only that part.
+ * This stage job retrieves a set number of partial WXR objects from a stack
+ * and processes them.
+ *
+ * If
  *
  * @package ImporterExperiment\Jobs
  */
-class WXRImportJob extends Job {
+class WXRImport extends StageJob {
 
 	/**
 	 * @var string[] A list of partial importer classnames.
@@ -36,7 +41,10 @@ class WXRImportJob extends Job {
 	/**
 	 * @return bool
 	 *
-	 * @todo Error handling, checking if the meta exists, etc.
+	 * @todo If the partial importer fails, in some cases we might want to retry.
+	 *       For example, if the attachment could not be downloaded, we might want
+	 *       to try again. In that case we would want to add the object back to the
+	 *       stack and somehow keep record of how many attempts we did.
 	 */
 	public function run() {
 
@@ -57,25 +65,32 @@ class WXRImportJob extends Job {
 		$importer = $this->arguments['importer'];
 
 		if ( ! isset( $this->default_partial_importers[ $importer ] ) ) {
-			throw new Exception( sprintf( __( 'Partial importer of type %s not implemented.' ), $importer ) );
+			throw new ImporterException( sprintf( __( 'Partial importer of type %s not implemented.' ), $importer ) );
 		}
 
 		$partial_importer_class = apply_filters( 'wordpress_importer_' . $importer . '_class', $this->default_partial_importers[ $importer ] );
 
-		foreach ( $objects as $object ) {
-			/** @var PartialImport $partial_importer */
-			$start            = microtime( true );
-			$partial_importer = new $partial_importer_class( $this->import );
-			$partial_importer->process( $object );
-			$partial_importer->import();
-			$total = ( microtime( true ) - $start );
+		if ( ! class_exists( $partial_importer_class ) ) {
+			throw new ImporterException( sprintf( __( 'Partial importer %s does not exist.' ), $partial_importer_class ) );
 		}
 
-		// Todo if something failed, we need to add the remaining objects back to the stack and throw an exception.
-		//      The object that failed needs to have be marked as failed and retried X times.
-		//      if we encounter an object that has more than X retries, we log an error and continue. We don't add it back
-		//      to the stack.
+		foreach ( $objects as $object ) {
+			/** @var PartialImport $partial_importer */
+			$partial_importer = new $partial_importer_class( $this->import );
 
+			try {
+				$partial_importer->process( $object );
+				$partial_importer->import();
+			} catch ( \Exception $e ) {
+				$this->import->log(
+					sprintf( __( 'Object %s for %s importer could not be processed.' ), $object, $importer ),
+					Import::LOG_ERROR,
+					array(
+						'exception' => $e,
+					)
+				);
+			}
+		}
 	}
 
 

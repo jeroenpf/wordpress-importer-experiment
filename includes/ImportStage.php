@@ -2,9 +2,9 @@
 
 namespace ImporterExperiment;
 
-use ImporterExperiment\Abstracts\Job;
-use ImporterExperiment\Abstracts\Scheduler;
-use ImporterExperiment\Abstracts\JobRunner;
+use ImporterExperiment\Abstracts\StageJob;
+use ImporterExperiment\Abstracts\Dispatcher;
+use ImporterExperiment\Abstracts\StageJobRunner;
 use WP_Comment;
 
 class ImportStage {
@@ -220,12 +220,14 @@ class ImportStage {
 	}
 
 	/**
-	 * Schedule all the jobs added to this stage.
+	 * Dispatch jobs in the current stage.
+	 *
+	 * Jobs will be dispatched to the underlying job queue system.
 	 *
 	 * @todo set a limit on how many jobs will be scheduled each time
 	 *       to prevent timeouts when scheduling too many jobs.
 	 */
-	public function schedule_jobs() {
+	public function dispatch_jobs() {
 
 		if ( ! $this->dependencies_met() ) {
 			return;
@@ -238,7 +240,7 @@ class ImportStage {
 
 		$jobs = $this->get_jobs();
 
-		$scheduler = Scheduler::instance();
+		$dispatcher = Dispatcher::instance();
 
 		foreach ( $jobs as $job ) {
 
@@ -248,7 +250,7 @@ class ImportStage {
 			$class             = str_replace( '/', '\\', $class );
 			$args['stage_job'] = $job->comment_ID;
 
-			$scheduler->schedule( JobRunner::ACTION_HOOK, $class, $args );
+			$dispatcher->dispatch( StageJobRunner::ACTION_HOOK, $class, $args );
 			update_comment_meta( $job->comment_ID, 'status', self::STATUS_SCHEDULED );
 		}
 
@@ -259,7 +261,7 @@ class ImportStage {
 	 *
 	 * @return WP_Comment[]
 	 */
-	public function get_jobs( $statuses = array( Job::STATUS_PENDING ), $limit = 0 ) {
+	public function get_jobs( $statuses = array( StageJob::STATUS_PENDING ), $limit = 0 ) {
 
 		$args = array(
 			'parent' => $this->get_id(),
@@ -346,7 +348,7 @@ class ImportStage {
 		$class = str_replace( '\\', '/', $class );
 
 		if ( self::STATUS_COMPLETED === $this->get_status() ) {
-			throw new Exception( 'Adding a job to a completed stage is not allowed.' );
+			throw new ImporterException( 'Adding a job to a completed stage is not allowed.' );
 		}
 
 		// Make a unique key for the job to prevent duplicates

@@ -1,8 +1,8 @@
 <?php
 
-namespace ImporterExperiment\Jobs;
+namespace ImporterExperiment\StageJobs;
 
-use ImporterExperiment\Abstracts\Job;
+use ImporterExperiment\Abstracts\StageJob;
 use ImporterExperiment\PartialImporters\Post;
 
 /**
@@ -13,7 +13,7 @@ use ImporterExperiment\PartialImporters\Post;
  *
  * @package ImporterExperiment\Jobs
  */
-class AttachmentUrlMapJob extends Job {
+class AttachmentUrlMap extends StageJob {
 
 
 	/**

@@ -1,11 +1,11 @@
 <?php
 
-namespace ImporterExperiment\Jobs;
+namespace ImporterExperiment\StageJobs;
 
-use ImporterExperiment\Abstracts\Job;
+use ImporterExperiment\Abstracts\StageJob;
 use ImporterExperiment\Import;
 
-class FinalizeImportJob extends Job {
+class FinalizeImport extends StageJob {
 
 	public function run() {
 

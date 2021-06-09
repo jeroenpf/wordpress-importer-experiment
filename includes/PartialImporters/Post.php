@@ -7,6 +7,7 @@ require_once ABSPATH . '/wp-admin/includes/post.php';
 require_once ABSPATH . '/wp-admin/includes/file.php';
 require_once ABSPATH . '/wp-admin/includes/image.php';
 
+use ImporterExperiment\Abstracts\Logger;
 use ImporterExperiment\Abstracts\PartialXMLImport;
 use SimpleXMLElement;
 use WP_Error;
@@ -28,11 +29,19 @@ class Post extends PartialXMLImport {
 
 	protected $is_new_post = false;
 
+	/**
+	 * @var Logger
+	 */
+	protected $logger;
+
 	public function import() {
 		$posts = apply_filters( 'wp_import_post', array( $this->data ) );
 
 		$this->author_mapping    = $this->import->get_meta( 'author_mapping' );
 		$this->processed_authors = $this->import->get_meta( 'processed_authors' );
+
+		$this->logger = $this->import->get_logger();
+
 		foreach ( $posts as $post ) {
 			$this->import_post( $post );
 		}
@@ -47,12 +56,8 @@ class Post extends PartialXMLImport {
 	protected function import_post( $post ) {
 		$post = apply_filters( 'wp_import_post_data_raw', $post );
 		if ( ! post_type_exists( $post['post_type'] ) ) {
-			printf(
-				__( 'Failed to import &#8220;%1$s&#8221;: Invalid post type %2$s', 'wordpress-importer' ),
-				esc_html( $post['post_title'] ),
-				esc_html( $post['post_type'] )
-			);
-			echo '<br />';
+			$msg = __( 'Failed to import &#8220;%1$s&#8221;: Invalid post type %2$s', 'wordpress-importer' );
+			$this->logger->error( sprintf( $msg, $post['post_title'], $post['post_type'] ) );
 			do_action( 'wp_import_post_exists', $post );
 			return;
 		}
@@ -73,7 +78,7 @@ class Post extends PartialXMLImport {
 		}
 
 		if ( 'nav_menu_item' === $post['post_type'] ) {
-			//$this->process_menu_item( $post );
+			$this->process_menu_item( $post );
 			// todo menu item
 			return;
 		}
@@ -82,15 +87,13 @@ class Post extends PartialXMLImport {
 
 		if ( is_wp_error( $post_id ) ) {
 			$post_type_object = get_post_type_object( $post['post_type'] );
-			printf(
-				__( 'Failed to import %s &#8220;%s&#8221;', 'wordpress-importer' ),
-				$post_type_object->labels->singular_name,
-				esc_html( $post['post_title'] )
-			);
-			if ( defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG ) {
-				echo ': ' . $post_id->get_error_message();
-			}
-			echo '<br />';
+			$msg              = __( 'Failed to import %s &#8220;%s&#8221;', 'wordpress-importer' );
+			$msg              = sprintf( $msg, $post_type_object->labels->singular_name, esc_html( $post['post_title'] ) );
+			$context          = defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG
+				? array( 'error_message', $post_id->get_error_message() )
+				: array();
+
+			$this->logger->error( $msg, $context );
 			return;
 		}
 
@@ -179,8 +182,8 @@ class Post extends PartialXMLImport {
 		// Log it.
 		if ( $exists ) {
 			$post_type_object = get_post_type_object( $post['post_type'] );
-			printf( __( '%s &#8220;%s&#8221; already exists.', 'wordpress-importer' ), $post_type_object->labels->singular_name, esc_html( $post['post_title'] ) );
-
+			$msg              = sprintf( __( '%s &#8220;%s&#8221; already exists.', 'wordpress-importer' ), $post_type_object->labels->singular_name, esc_html( $post['post_title'] ) );
+			$this->logger->notice( $msg );
 		}
 
 		return $exists;
@@ -280,11 +283,12 @@ class Post extends PartialXMLImport {
 					$term_id = $t['term_id'];
 					do_action( 'wp_import_insert_term', $t, $term, $post_id, $post );
 				} else {
-					printf( __( 'Failed to import %s %s', 'wordpress-importer' ), esc_html( $taxonomy ), esc_html( $term['name'] ) );
-					if ( defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG ) {
-						echo ': ' . $t->get_error_message();
-					}
-					echo '<br />';
+					$msg     = sprintf( __( 'Failed to import %s %s', 'wordpress-importer' ), esc_html( $taxonomy ), esc_html( $term['name'] ) );
+					$context = defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG
+						? array( 'error_message' => $t->get_error_message() )
+						: array();
+
+					$this->logger->error( $msg, $context );
 					do_action( 'wp_import_insert_term_failed', $t, $term, $post_id, $post );
 					continue;
 				}

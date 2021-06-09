@@ -59,7 +59,7 @@ class PartialXMLReader {
 
 			echo $data;
 
-			throw new Exception( libxml_get_last_error()->message );
+			throw new ImporterException( libxml_get_last_error()->message );
 		}
 
 		$xml              = simplexml_import_dom( $dom );

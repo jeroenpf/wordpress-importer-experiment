@@ -4,7 +4,7 @@ namespace ImporterExperiment;
 
 use ActionScheduler;
 use ActionScheduler_Store;
-use ImporterExperiment\Abstracts\Scheduler;
+use ImporterExperiment\Abstracts\Dispatcher;
 use ImporterExperiment\PartialImporters\Author;
 
 class Admin {
@@ -47,7 +47,7 @@ class Admin {
 				break;
 
 			case 'status':
-				$import = new Import( $_GET['import_id'], Scheduler::instance() );
+				$import = $this->importer->get_import_by_id( $_GET['import_id'] );
 				include __DIR__ . '/../partials/status.php';
 				break;
 
@@ -260,7 +260,7 @@ class Admin {
 
 		wp_send_json(
 			array(
-				'processed_actions' => $processed_actions
+				'processed_actions' => $processed_actions,
 			)
 		);
 
@@ -280,7 +280,7 @@ class Admin {
 
 	public function get_debug() {
 
-		$import = new Import( $_POST['import_id'], Scheduler::instance() );
+		$import = $this->importer->get_import_by_id( $_POST['import_id'] );
 
 		$response = array(
 			'import' => array(
@@ -314,7 +314,6 @@ class Admin {
 		$out = array();
 
 		foreach ( $stage->get_jobs( array(), 10 ) as $job ) {
-
 
 			$out[] = array(
 				'id'   => $job->comment_ID,

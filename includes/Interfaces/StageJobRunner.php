@@ -2,7 +2,7 @@
 
 namespace ImporterExperiment\Interfaces;
 
-interface JobRunner {
+interface StageJobRunner {
 
 	public function run();
 

@@ -2,9 +2,11 @@
 
 namespace ImporterExperiment;
 
-use ImporterExperiment\Abstracts\Scheduler;
-use ImporterExperiment\Jobs\InitializeImportJob;
-use ImporterExperiment\JobRunner;
+use ImporterExperiment\Abstracts\Dispatcher;
+use ImporterExperiment\Abstracts\Logger;
+use ImporterExperiment\Loggers\CommentLogger;
+use ImporterExperiment\StageJobs\InitializeImport;
+use ImporterExperiment\StageJobRunner;
 
 class Importer {
 
@@ -13,8 +15,13 @@ class Importer {
 	/** @var Importer */
 	private static $importer;
 
-	/** @var Scheduler */
-	protected $scheduler;
+	/** @var Dispatcher */
+	protected $dispatcher;
+
+	/**
+	 * @var Logger
+	 */
+	protected $logger;
 
 
 	public function init() {
@@ -22,12 +29,22 @@ class Importer {
 		add_action( 'admin_init', array( $this, 'register_post_type' ) );
 
 		// Load the scheduler
-		$this->scheduler = Scheduler::instance();
-		$this->scheduler->init();
+		$this->dispatcher = Dispatcher::instance();
+		$this->dispatcher->init();
+
+		$logger_class = apply_filters( 'wordpress_importer_logger_class', CommentLogger::class );
+		$this->logger = new $logger_class();
 
 		// JobRunner
-		JobRunner::init();
+		StageJobRunner::init();
 
+	}
+
+	/**
+	 * @return Logger
+	 */
+	public function get_logger() {
+		return $this->logger;
 	}
 
 	/**
@@ -37,10 +54,10 @@ class Importer {
 	 *
 	 * @return Import
 	 *
-	 * @throws Exception
+	 * @throws ImporterException
 	 */
 	public function create_wxr_import( $wxr_file_path ) {
-		return Import::create( $wxr_file_path, $this->scheduler );
+		return Import::create( $wxr_file_path, $this->dispatcher, $this->logger );
 	}
 
 	/**
@@ -48,10 +65,10 @@ class Importer {
 	 *
 	 * @return Import
 	 *
-	 * @throws Exception
+	 * @throws ImporterException
 	 */
 	public function get_import_by_id( $post_id ) {
-		return new Import( $post_id, $this->scheduler );
+		return new Import( $post_id, $this->dispatcher, $this->logger );
 	}
 
 

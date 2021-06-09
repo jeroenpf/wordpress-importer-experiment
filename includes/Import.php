@@ -2,9 +2,10 @@
 
 namespace ImporterExperiment;
 
-use ImporterExperiment\Interfaces\JobRunner;
-use ImporterExperiment\Interfaces\Scheduler;
-use ImporterExperiment\Jobs\InitializeImportJob;
+use ImporterExperiment\Interfaces\Logger;
+use ImporterExperiment\Interfaces\StageJobRunner;
+use ImporterExperiment\Interfaces\Dispatcher;
+use ImporterExperiment\StageJobs\InitializeImport;
 use WP_Comment;
 use WP_Post;
 
@@ -16,9 +17,9 @@ class Import {
 	const STATUS_DONE    = 'completed';
 
 	/**
-	 * @var Scheduler
+	 * @var Dispatcher
 	 */
-	protected $scheduler;
+	protected $dispatcher;
 
 	/**
 	 * @var WP_Post
@@ -26,20 +27,26 @@ class Import {
 	protected $post;
 
 	/**
+	 * @var Logger
+	 */
+	protected $logger;
+
+	/**
 	 * Create a new import and return the created instance.
 	 *
-	 * @param JobRunner $runner
-	 * @param Scheduler $scheduler
+	 * @param $wxr_file_path
+	 * @param Dispatcher $dispatcher
+	 * @param Logger $logger
 	 *
 	 * @return static
 	 *
 	 * @todo we probably don't need the scheduler so remove it (if possible).
 	 */
-	public static function create( $wxr_file_path, Scheduler $scheduler ) {
+	public static function create( $wxr_file_path, Dispatcher $dispatcher, Logger $logger ) {
 
 		$post_id = wp_insert_post(
 			array(
-				'type'         => Importer::POST_TYPE,
+				'post_type'    => Importer::POST_TYPE,
 				'post_title'   => sprintf( 'import-%s', wp_generate_uuid4() ),
 				'post_content' => 'Import',
 				'meta_input'   => array(
@@ -50,7 +57,7 @@ class Import {
 			)
 		);
 
-		return new static( $post_id, $scheduler );
+		return new static( $post_id, $dispatcher, $logger );
 	}
 
 
@@ -58,18 +65,19 @@ class Import {
 	 * Import constructor.
 	 *
 	 * @param int $post_id
-	 * @param JobRunner $runner
-	 * @param Scheduler $scheduler
-	 *
-	 * @throws Exception
+	 * @param Dispatcher $dispatcher
+	 * @param Logger $logger
 	 */
-	public function __construct( $post_id, Scheduler $scheduler ) {
-		$this->scheduler = $scheduler;
+	public function __construct( $post_id, Dispatcher $dispatcher, Logger $logger ) {
+		$this->dispatcher = $dispatcher;
+		$this->logger     = $logger;
+
+		$this->logger->set_import( $this );
 
 		$this->post = get_post( $post_id );
 
 		if ( ! $this->post instanceof WP_Post ) {
-			throw new Exception( __( 'Invalid post id', 'wordpress-importer' ) );
+			throw new ImporterException( __( 'Invalid post id', 'wordpress-importer' ) );
 		}
 	}
 
@@ -79,10 +87,10 @@ class Import {
 	public function start() {
 		// Run the initialize import job (will parse the WXR and create jobs)
 		$stage = ImportStage::get_or_create( 'initialization', $this );
-		$stage->add_job( InitializeImportJob::class );
+		$stage->add_job( InitializeImport::class );
 
 		$stage->release();
-		$stage->schedule_jobs();
+		$stage->dispatch_jobs();
 
 		$this->set_status( self::STATUS_RUNNING );
 	}
@@ -111,7 +119,7 @@ class Import {
 			),
 			true
 		) ) {
-			throw new Exception( __( 'Invalid import status.', 'wordpress-importer' ) );
+			throw new ImporterException( __( 'Invalid import status.', 'wordpress-importer' ) );
 		}
 
 		$this->set_meta( 'status', $status );
@@ -184,9 +192,13 @@ class Import {
 
 	}
 
-	public function log( $message, $level, $context = array() ) {
-
+	/**
+	 * Get an instance of the logger.
+	 *
+	 * @return Logger
+	 */
+	public function get_logger() {
+		return $this->logger;
 	}
-
 
 }

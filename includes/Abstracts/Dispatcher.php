@@ -2,20 +2,20 @@
 
 namespace ImporterExperiment\Abstracts;
 
-use ImporterExperiment\ActionScheduler;
-use ImporterExperiment\Interfaces\Scheduler as SchedulerInterface;
+use ImporterExperiment\Dispatchers\ActionSchedulerDispatcher;
+use ImporterExperiment\Interfaces\Dispatcher as DispatcherInterface;
 
-abstract class Scheduler implements SchedulerInterface {
+abstract class Dispatcher implements DispatcherInterface {
 
-	const DEFAULT_CLASS = ActionScheduler::class;
+	const DEFAULT_CLASS = ActionSchedulerDispatcher::class;
 
-	/** @var Scheduler */
+	/** @var Dispatcher */
 	private static $scheduler = null;
 
 	abstract public function init();
 
 	/**
-	 * @return Scheduler
+	 * @return Dispatcher
 	 */
 	public static function instance() {
 

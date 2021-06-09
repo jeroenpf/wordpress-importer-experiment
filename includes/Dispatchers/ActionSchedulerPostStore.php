@@ -1,6 +1,6 @@
 <?php
 
-namespace ImporterExperiment;
+namespace ImporterExperiment\Dispatchers;
 
 use ActionScheduler_wpPostStore;
 

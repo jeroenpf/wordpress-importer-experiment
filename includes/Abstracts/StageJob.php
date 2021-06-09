@@ -7,7 +7,7 @@ use ImporterExperiment\ImportStage;
 use ImporterExperiment\Interfaces\Job as JobInterface;
 use WP_Comment;
 
-abstract class Job implements JobInterface {
+abstract class StageJob implements JobInterface {
 
 	const STATUS_PENDING = 'pending';
 	const STATUS_RUNNING = 'running';
@@ -50,6 +50,10 @@ abstract class Job implements JobInterface {
 	 */
 	public function get_stage() {
 		return ImportStage::get_by_id( $this->stage_job->comment_parent, $this->import );
+	}
+
+	public function increment() {
+
 	}
 
 }

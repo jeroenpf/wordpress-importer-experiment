@@ -52,7 +52,7 @@ class WXR_Indexer {
 
 	public function parse( $file, array $allowed_tags = null ) {
 		if ( ! is_readable( $file ) ) {
-			throw new Exception( 'WXR file does not exist' );
+			throw new ImporterException( 'WXR file does not exist' );
 		}
 
 		if ( ! empty( $allowed_tags ) ) {

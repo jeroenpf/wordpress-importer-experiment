@@ -1,10 +1,10 @@
 <?php
 
-namespace ImporterExperiment\Jobs;
+namespace ImporterExperiment\StageJobs;
 
-use ImporterExperiment\Exception;
+use ImporterExperiment\ImporterException;
 use ImporterExperiment\ImportStage;
-use ImporterExperiment\Abstracts\Job;
+use ImporterExperiment\Abstracts\StageJob;
 use ImporterExperiment\WXR_Indexer;
 
 /**
@@ -15,7 +15,7 @@ use ImporterExperiment\WXR_Indexer;
  *
  * @package ImporterExperiment\Jobs
  */
-class InitializeImportJob extends Job {
+class InitializeImport extends StageJob {
 
 	/**
 	 * @var WXR_Indexer;
@@ -30,7 +30,7 @@ class InitializeImportJob extends Job {
 		'wp:term'     => 'term',
 	);
 
-	const WXR_JOB_CLASS = WXRImportJob::class;
+	const WXR_JOB_CLASS = WXRImport::class;
 
 	public function run() {
 
@@ -38,7 +38,7 @@ class InitializeImportJob extends Job {
 		$checksum      = $this->import->get_meta( 'wxr_file_checksum' );
 
 		if ( md5_file( $wxr_file_path ) !== $checksum ) {
-			throw new Exception( 'Invalid WXR file.' );
+			throw new ImporterException( 'Invalid WXR file.' );
 		}
 
 		// Create stages jobs for partial imports of the WXR.
@@ -49,8 +49,6 @@ class InitializeImportJob extends Job {
 
 		// Create the finalize job.
 		$this->create_finalize_job();
-
-		sleep( 20 );
 	}
 
 	protected function create_partial_import_jobs( $wxr_file_path ) {
@@ -131,7 +129,7 @@ class InitializeImportJob extends Job {
 
 		$stage = ImportStage::get_or_create( 'attachment_remapping', $this->import );
 
-		$stage->add_job( AttachmentUrlMapJob::class );
+		$stage->add_job( AttachmentUrlMap::class );
 
 		// Run after posts have imported.
 		$stage->depends_on( array( 'posts' ) );
@@ -145,7 +143,7 @@ class InitializeImportJob extends Job {
 		$stage = ImportStage::get_or_create( 'finalize', $this->import );
 		$stage->set_final_stage( true );
 
-		$stage->add_job( FinalizeImportJob::class );
+		$stage->add_job( FinalizeImport::class );
 
 		$stage->release();
 
