@@ -4,7 +4,7 @@ namespace ImporterExperiment;
 
 use ImporterExperiment\Abstracts\StageJobRunner as JobRunnerAbstract;
 use ImporterExperiment\Abstracts\Dispatcher;
-use ImporterExperiment\Interfaces\Job;
+use ImporterExperiment\Interfaces\StageJob;
 use ImporterExperiment\Abstracts\StageJob as JobAbstract;
 
 /**
@@ -24,9 +24,9 @@ use ImporterExperiment\Abstracts\StageJob as JobAbstract;
 class StageJobRunner extends JobRunnerAbstract {
 
 	/**
-	 * @var Job
+	 * @var StageJob
 	 */
-	protected $job;
+	protected $stage_job;
 
 	/**
 	 * @var Import
@@ -41,14 +41,14 @@ class StageJobRunner extends JobRunnerAbstract {
 	/**
 	 * JobRunner constructor.
 	 *
-	 * @param Job $job
+	 * @param StageJob $stage_job
 	 * @param Import $import
 	 * @param ImportStage $stage
 	 */
-	public function __construct( Job $job, Import $import, ImportStage $stage ) {
-		$this->import = $import;
-		$this->stage  = $stage;
-		$this->job    = $job;
+	public function __construct( StageJob $stage_job, Import $import, ImportStage $stage ) {
+		$this->import    = $import;
+		$this->stage     = $stage;
+		$this->stage_job = $stage_job;
 	}
 
 	/**
@@ -60,7 +60,7 @@ class StageJobRunner extends JobRunnerAbstract {
 		$this->pre_execute();
 
 		// Run the job.
-		$this->job->run();
+		$this->stage_job->run();
 
 		// Handle post execution logic.
 		$this->post_execute();
@@ -74,7 +74,7 @@ class StageJobRunner extends JobRunnerAbstract {
 	 */
 	protected function pre_execute() {
 		// Set the job to running.
-		$this->job->set_status( JobAbstract::STATUS_RUNNING );
+		$this->stage_job->set_status( JobAbstract::STATUS_RUNNING );
 
 		// Set the stage to running.
 		$this->stage->set_status( ImportStage::STATUS_RUNNING );
@@ -86,13 +86,15 @@ class StageJobRunner extends JobRunnerAbstract {
 	 */
 	protected function post_execute() {
 
-		$this->job->set_status( JobAbstract::STATUS_DONE );
+		$this->stage_job->set_status( JobAbstract::STATUS_DONE );
 
 		// If there are no more jobs left, the stage is complete.
 		if ( ! $this->stage->has_jobs( true ) ) {
 			$this->stage->set_status( ImportStage::STATUS_COMPLETED );
 		}
 
+		// As a final step, delete the job.
+		$this->stage_job->delete();
 	}
 
 	/**
@@ -158,10 +160,10 @@ class StageJobRunner extends JobRunnerAbstract {
 
 		$stage = new ImportStage( $stage_comment, $import );
 
-		/** @var Job $class */
-		$job_instance = new $job_class( $import, $job );
+		/** @var StageJob $class */
+		$stage_job = new $job_class( $import, $job );
 
-		$runner = new static( $job_instance, $import, $stage );
+		$runner = new static( $stage_job, $import, $stage );
 		$runner->run();
 
 	}

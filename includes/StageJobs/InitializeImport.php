@@ -57,11 +57,6 @@ class InitializeImport extends StageJob {
 		$this->indexer = $indexer;
 
 		$stages = array(
-			'authors'    => array(
-				'type'       => 'wp:author',
-				'depends_on' => 'initialization',
-				'per_batch'  => 100,
-			),
 			'categories' => array(
 				'type'       => 'wp:category',
 				'depends_on' => 'initialization',
@@ -80,39 +75,42 @@ class InitializeImport extends StageJob {
 			),
 			'posts'      => array(
 				'type'       => 'item',
-				'depends_on' => array( 'initialization', 'authors', 'categories', 'terms', 'tags' ),
-				'per_batch'  => 5,
+				'depends_on' => array( 'initialization', 'categories', 'terms', 'tags' ),
+				'per_batch'  => 2,
 			),
 		);
 
-		$total_objects = 0;
+		$empty_stages = array();
 
-		foreach ( $stages as $stage => $settings ) {
-			$new_stage = ImportStage::get_or_create( $stage, $this->import );
-
-			if ( ! empty( $settings['depends_on'] ) ) {
-				$new_stage->depends_on( $settings['depends_on'] );
+		foreach ( $stages as $stage_name => $settings ) {
+			$count = $this->indexer->get_count( $settings['type'] );
+			if ( ! $count ) {
+				$empty_stages[ $stage_name ] = true;
+				continue;
 			}
 
-			$new_stage->set_meta( 'objects', $this->indexer->get_data_raw( $settings['type'] ) );
-			$new_stage->set_meta( 'per_batch', $settings['per_batch'] );
+			$stage = ImportStage::get_or_create( $stage_name, $this->import );
+
+			if ( ! empty( $settings['depends_on'] ) ) {
+				$stage->depends_on( array_intersect_key( $settings['depends_on'], $empty_stages ) );
+			}
+
+			$stage->set_meta( 'objects', $this->indexer->get_data_raw( $settings['type'] ) );
+			$stage->set_meta( 'per_batch', $settings['per_batch'] );
 
 			$job_args = array(
 				'importer'   => $this->type_map[ $settings['type'] ],
-				'stage_name' => $stage,
+				'stage_name' => $stage_name,
 			);
 
 			// Create a job to start processing objects in the stage.
 			$job_class = apply_filters( 'importer_experiment_wxr_job', self::WXR_JOB_CLASS );
-			$new_stage->add_job( $job_class, $job_args );
+			$stage->add_job( $job_class, $job_args );
 
-			$new_stage->release();
+			$stage->release();
 
-			$total_objects += $this->indexer->get_count( $settings['type'] );
+			$stage->increment_total_count( $this->indexer->get_count( $settings['type'] ) );
 		}
-
-
-		return $total_objects;
 	}
 
 
@@ -125,6 +123,11 @@ class InitializeImport extends StageJob {
 		}
 	}
 
+	/**
+	 * @throws \Exception
+	 *
+	 * @todo only schedule when the posts stage exists.
+	 */
 	protected function create_attachment_jobs() {
 
 		$stage = ImportStage::get_or_create( 'attachment_remapping', $this->import );

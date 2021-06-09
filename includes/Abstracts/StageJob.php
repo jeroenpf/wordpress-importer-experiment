@@ -4,7 +4,7 @@ namespace ImporterExperiment\Abstracts;
 
 use ImporterExperiment\Import;
 use ImporterExperiment\ImportStage;
-use ImporterExperiment\Interfaces\Job as JobInterface;
+use ImporterExperiment\Interfaces\StageJob as JobInterface;
 use WP_Comment;
 
 abstract class StageJob implements JobInterface {
@@ -28,9 +28,15 @@ abstract class StageJob implements JobInterface {
 	 */
 	protected $stage_job;
 
+	/**
+	 * @var ImportStage
+	 */
+	protected $stage;
+
 	public function __construct( Import $import, WP_Comment $stage_job ) {
 		$this->import    = $import;
 		$this->stage_job = $stage_job;
+		$this->stage     = ImportStage::get_by_id( $this->stage_job->comment_parent, $this->import );
 		$this->arguments = get_comment_meta( $stage_job->comment_ID, 'job_arguments', true );
 	}
 
@@ -49,11 +55,11 @@ abstract class StageJob implements JobInterface {
 	 * @return ImportStage
 	 */
 	public function get_stage() {
-		return ImportStage::get_by_id( $this->stage_job->comment_parent, $this->import );
+		return $this->stage;
 	}
 
-	public function increment() {
-
+	public function delete() {
+		wp_delete_comment( $this->stage_job->comment_ID, true );
 	}
 
 }

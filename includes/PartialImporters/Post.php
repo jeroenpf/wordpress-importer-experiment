@@ -159,6 +159,11 @@ class Post extends PartialXMLImport {
 	 * @return mixed|void|null
 	 */
 	protected function get_existing_post_id( $post ) {
+		/**
+		 * @todo There are unique posts that have identical titles.
+		 *       the post_exists function causes issues where these
+		 *       posts are ignored. This has to be improved.
+		 */
 		$post_exists = post_exists( $post['post_title'], '', $post['post_date'] );
 
 		/**
@@ -283,7 +288,7 @@ class Post extends PartialXMLImport {
 					$term_id = $t['term_id'];
 					do_action( 'wp_import_insert_term', $t, $term, $post_id, $post );
 				} else {
-					$msg     = sprintf( __( 'Failed to import %s %s', 'wordpress-importer' ), esc_html( $taxonomy ), esc_html( $term['name'] ) );
+					$msg     = sprintf( __( 'Failed to import term of type "%s" and name "%s"', 'wordpress-importer' ), esc_html( $taxonomy ), esc_html( $term['name'] ) );
 					$context = defined( 'IMPORT_DEBUG' ) && IMPORT_DEBUG
 						? array( 'error_message' => $t->get_error_message() )
 						: array();

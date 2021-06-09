@@ -177,6 +177,58 @@ class ImportStage {
 		return $this->stage->comment_content;
 	}
 
+	/**
+	 * Increment the specified counter.
+	 *
+	 * @param string $counter The counter to increment (e.g. failed, success, total).
+	 * @param int $increment The amount to increment the counter with.
+	 *
+	 * @return int The new value of the counter.
+	 */
+	public function increment_count( $counter = 'total', $increment = 1 ) {
+
+		$key           = sprintf( '%s_object_count', $counter );
+		$current_count = $this->get_meta( $key ) ?: 0;
+		$new_count     = $current_count + $increment;
+
+		$this->set_meta( $key, $new_count );
+
+		return $new_count;
+	}
+
+	/**
+	 * Increment the failed counter.
+	 *
+	 * @param int $increment
+	 *
+	 * @return int The new value of the failed counter.
+	 */
+	public function increment_failed_count( $increment = 1 ) {
+		return $this->increment_count( 'failed', $increment );
+	}
+
+	/**
+	 * Increment the total counter.
+	 *
+	 * @param int $increment
+	 *
+	 * @return int The new value of the total counter.
+	 */
+	public function increment_total_count( $increment = 1 ) {
+		return $this->increment_count( 'total', $increment );
+	}
+
+	/**
+	 * Increment the success counter.
+	 *
+	 * @param int $increment
+	 *
+	 * @return int The new value of the success counter.
+	 */
+	public function increment_success_count( $increment = 1 ) {
+		return $this->increment_count( 'success', $increment );
+	}
+
 	public function is_final_stage() {
 		return '1' === $this->get_meta( 'final_stage' );
 	}

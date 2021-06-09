@@ -6,6 +6,7 @@ use ImporterExperiment\Abstracts\StageJob;
 use ImporterExperiment\Import;
 use ImporterExperiment\ImporterException;
 use ImporterExperiment\ImportStage;
+use ImporterExperiment\Interfaces\Logger;
 use ImporterExperiment\Interfaces\PartialImport;
 use ImporterExperiment\PartialImporters\Author;
 use ImporterExperiment\PartialImporters\Category;
@@ -62,6 +63,56 @@ class WXRImport extends StageJob {
 			return false;
 		}
 
+		$this->run_partial_importers( $objects );
+
+	}
+
+	/**
+	 * @param array $objects
+	 */
+	protected function run_partial_importers( array $objects ) {
+		$success_count          = 0;
+		$failure_count          = 0;
+		$partial_importer_class = $this->get_partial_importer_class();
+
+		foreach ( $objects as $object ) {
+			/** @var PartialImport $partial_importer */
+			$partial_importer = new $partial_importer_class( $this->import );
+
+			try {
+				$partial_importer->process( $object );
+				$partial_importer->import();
+				$success_count++;
+			} catch ( \Exception $e ) {
+				$failure_count++;
+				$this->import->get_logger()->error(
+					sprintf( __( 'Object %s for %s importer could not be processed.' ), $object, $this->arguments['importer'] ),
+					array(
+						'exception' => $e,
+					)
+				);
+			}
+		}
+
+		$this->update_counts( $success_count, $failure_count );
+	}
+
+	protected function update_counts( $success_count, $failure_count ) {
+
+		if ( $success_count > 0 ) {
+			$this->stage->increment_success_count( $success_count );
+		}
+
+		if ( $failure_count > 0 ) {
+			$this->stage->increment_failed_count( $failure_count );
+		}
+
+	}
+
+	/**
+	 * @return string
+	 */
+	protected function get_partial_importer_class() {
 		$importer = $this->arguments['importer'];
 
 		if ( ! isset( $this->default_partial_importers[ $importer ] ) ) {
@@ -74,23 +125,7 @@ class WXRImport extends StageJob {
 			throw new ImporterException( sprintf( __( 'Partial importer %s does not exist.' ), $partial_importer_class ) );
 		}
 
-		foreach ( $objects as $object ) {
-			/** @var PartialImport $partial_importer */
-			$partial_importer = new $partial_importer_class( $this->import );
-
-			try {
-				$partial_importer->process( $object );
-				$partial_importer->import();
-			} catch ( \Exception $e ) {
-				$this->import->log(
-					sprintf( __( 'Object %s for %s importer could not be processed.' ), $object, $importer ),
-					Import::LOG_ERROR,
-					array(
-						'exception' => $e,
-					)
-				);
-			}
-		}
+		return $partial_importer_class;
 	}
 
 

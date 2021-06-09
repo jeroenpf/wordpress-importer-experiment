@@ -5,6 +5,7 @@ namespace ImporterExperiment;
 use ActionScheduler;
 use ActionScheduler_Store;
 use ImporterExperiment\Abstracts\Dispatcher;
+use ImporterExperiment\Loggers\CommentLogger;
 use ImporterExperiment\PartialImporters\Author;
 
 class Admin {
@@ -288,15 +289,19 @@ class Admin {
 				'meta' => $this->parse_meta( $import->get_meta() ),
 			),
 			'stages' => array(),
+			'logs'   => $this->get_logs( $import ),
 		);
 
 		foreach ( $import->get_stages() as $stage ) {
 			$response['stages'][] = array(
 				'id'          => $stage->get_id(),
 				'meta'        => array(
-					'name'       => $stage->get_meta( 'name' ),
-					'status'     => $stage->get_meta( 'status' ),
-					'depends_on' => $stage->get_meta( 'state_depends_on' ),
+					'name'            => $stage->get_meta( 'name' ),
+					'status'          => $stage->get_meta( 'status' ),
+					'depends_on'      => $stage->get_meta( 'state_depends_on' ),
+					'total_objects'   => (int) $stage->get_meta( 'total_object_count' ),
+					'success_objects' => (int) $stage->get_meta( 'success_object_count' ),
+					'failed_objects'  => (int) $stage->get_meta( 'failed_object_count' ),
 				),
 				'jobs'        => $this->format_jobs( $stage ),
 				'total_jobs'  => $stage->get_jobs_count(),
@@ -307,6 +312,33 @@ class Admin {
 		wp_send_json( $response );
 
 		exit();
+	}
+
+	protected function get_logs( Import $import ) {
+		$comments = get_comments(
+			array(
+				'post_id' => $import->get_id(),
+				'type'    => CommentLogger::LOG_COMMENT_TYPE,
+				'number'  => 100,
+			)
+		);
+
+		$logs = array();
+
+		/** @var \WP_Comment $comment */
+		foreach ( $comments as $comment ) {
+
+			$logs[] = array(
+				'id'      => $comment->comment_ID,
+				'message' => $comment->comment_content,
+				'date'    => $comment->comment_date_gmt,
+				'meta'    => $this->parse_meta( get_comment_meta( $comment->comment_ID, '', true ) ),
+			);
+
+		}
+
+		return $logs;
+
 	}
 
 	protected function format_jobs( ImportStage $stage ) {
@@ -346,12 +378,25 @@ class Admin {
 
 	public function setup_admin() {
 
-		add_action( 'wp_ajax_wordpress_importer_progress', array( $this, 'get_status' ) );
 		add_action( 'wp_ajax_wordpress_importer_run_jobs', array( $this, 'run_jobs' ) );
-		add_action( 'wp_ajax_wordpress_importer_get_debug', array( $this, 'get_debug' ) );
+		add_action( 'wp_ajax_wordpress_importer_get_status', array( $this, 'get_debug' ) );
+
+		// Add module to script tag
+
+		$type_attr = static function ( $tag, $handle, $src ) {
+			// if not your script, do nothing and return original $tag
+			if ( 'wordpress-importer-index-js' !== $handle ) {
+				return $tag;
+			}
+			// change the script tag by adding type="module" and return it.
+			$tag = '<script type="module" src="' . esc_url( $src ) . '"></script>';
+			return $tag;
+		};
+
+		add_filter( 'script_loader_tag', $type_attr, 10, 3 );
 
 		if ( isset( $_GET['page'] ) && 'importer-experiment' === $_GET['page'] ) {
-			wp_enqueue_script( 'substack-index-js', plugins_url( '/js/status.js', $this->plugin_file ) );
+			wp_enqueue_script( 'wordpress-importer-index-js', plugins_url( '/js/main.js', $this->plugin_file ) );
 			wp_enqueue_style( 'substack-index-css', plugins_url( '/css/status.css', $this->plugin_file ) );
 
 			// Using VueJS and lodash while we are experimenting.
