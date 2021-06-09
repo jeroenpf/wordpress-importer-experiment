@@ -3,8 +3,6 @@
 namespace ImporterExperiment;
 
 use ImporterExperiment\Interfaces\Logger;
-use ImporterExperiment\Interfaces\StageJobRunner;
-use ImporterExperiment\Interfaces\Dispatcher;
 use ImporterExperiment\StageJobs\InitializeImport;
 use WP_Comment;
 use WP_Post;
@@ -15,11 +13,6 @@ class Import {
 	const STATUS_PENDING = 'pending';
 	const STATUS_RUNNING = 'running';
 	const STATUS_DONE    = 'completed';
-
-	/**
-	 * @var Dispatcher
-	 */
-	protected $dispatcher;
 
 	/**
 	 * @var WP_Post
@@ -35,14 +28,12 @@ class Import {
 	 * Create a new import and return the created instance.
 	 *
 	 * @param $wxr_file_path
-	 * @param Dispatcher $dispatcher
 	 * @param Logger $logger
 	 *
 	 * @return static
 	 *
-	 * @todo we probably don't need the scheduler so remove it (if possible).
 	 */
-	public static function create( $wxr_file_path, Dispatcher $dispatcher, Logger $logger ) {
+	public static function create( $wxr_file_path, Logger $logger ) {
 
 		$post_id = wp_insert_post(
 			array(
@@ -57,7 +48,7 @@ class Import {
 			)
 		);
 
-		return new static( $post_id, $dispatcher, $logger );
+		return new static( $post_id, $logger );
 	}
 
 
@@ -65,12 +56,10 @@ class Import {
 	 * Import constructor.
 	 *
 	 * @param int $post_id
-	 * @param Dispatcher $dispatcher
 	 * @param Logger $logger
 	 */
-	public function __construct( $post_id, Dispatcher $dispatcher, Logger $logger ) {
-		$this->dispatcher = $dispatcher;
-		$this->logger     = $logger;
+	public function __construct( $post_id, Logger $logger ) {
+		$this->logger = $logger;
 
 		$this->logger->set_import( $this );
 
@@ -104,10 +93,11 @@ class Import {
 		return $this->post->ID;
 	}
 
-	public function set_wxr_file() {
-
-	}
-
+	/**
+	 * Set the status of the import.
+	 *
+	 * @param $status
+	 */
 	public function set_status( $status ) {
 
 		if ( ! in_array(
@@ -157,9 +147,11 @@ class Import {
 
 
 	/**
-	 * @param array $include_statuses
+	 * Get all stages for the import.
 	 *
-	 * @return ImportStage[]
+	 * @param array $include_statuses Only include stages with one of these statuses.
+	 *
+	 * @return ImportStage[] An array of stages for this import.
 	 */
 	public function get_stages( $include_statuses = array() ) {
 

@@ -8,10 +8,15 @@ const $ = jQuery;
 export let ImportStatusComponent = {
 	template: `
 			<div>
-				<status-bar-component :completed_percentage="completed_percentage"></status-bar-component>
-				<import-summary-component v-if="status" :status="status"></import-summary-component>
-				<stages-component v-if="status && status.stages" :stages="status.stages"></stages-component>
-				<log-component v-if="status" :log_entries="status.logs"></log-component>
+				<div v-if="status">
+					<status-bar-component :completed_percentage="completed_percentage"></status-bar-component>
+					<import-summary-component :status="status"></import-summary-component>
+					<stages-component v-if="status.stages" :stages="status.stages"></stages-component>
+					<log-component v-if="status.logs" :log_entries="status.logs"></log-component>
+				</div>
+				<div v-else>
+					<h2>Import data is loading...</h2>
+				</div>
 			</div>
 			`,
 	data: () => {
@@ -43,7 +48,7 @@ export let ImportStatusComponent = {
 				}
 
 			});
-		}, 1000),
+		}, 100),
 		get_status: lodash.debounce(function () {
 			let obj = this;
 
@@ -58,7 +63,7 @@ export let ImportStatusComponent = {
 					obj.status = response;
 					obj.get_status();
 				});
-		}, 3000),
+		}, 6000),
 	},
 	computed: {
 		completed_percentage: function() {

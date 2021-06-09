@@ -65,8 +65,8 @@ class StageJobRunner extends JobRunnerAbstract {
 		// Handle post execution logic.
 		$this->post_execute();
 
-		// Schedule next jobs.
-		$this->schedule_next();
+		// Dispatch next jobs.
+		$this->dispatch_next();
 	}
 
 	/**
@@ -98,11 +98,11 @@ class StageJobRunner extends JobRunnerAbstract {
 	}
 
 	/**
-	 * Schedule jobs that are pending in stages that are ready to go.
+	 * Dispatch jobs that are pending in stages that are ready to go.
 	 *
 	 * @param ImportStage|null $stage
 	 */
-	protected function schedule_next( ImportStage $stage = null ) {
+	protected function dispatch_next( ImportStage $stage = null ) {
 
 		$active_stages = $this->import->get_stages(
 			array(
@@ -112,7 +112,7 @@ class StageJobRunner extends JobRunnerAbstract {
 			)
 		);
 
-		// Schedule jobs for active stages.
+		// Dispatch jobs for active stages.
 		foreach ( $active_stages as $active_stage ) {
 			$active_stage->dispatch_jobs();
 		}

@@ -57,7 +57,7 @@ class Importer {
 	 * @throws ImporterException
 	 */
 	public function create_wxr_import( $wxr_file_path ) {
-		return Import::create( $wxr_file_path, $this->dispatcher, $this->logger );
+		return Import::create( $wxr_file_path, $this->logger );
 	}
 
 	/**
@@ -68,7 +68,7 @@ class Importer {
 	 * @throws ImporterException
 	 */
 	public function get_import_by_id( $post_id ) {
-		return new Import( $post_id, $this->dispatcher, $this->logger );
+		return new Import( $post_id, $this->logger );
 	}
 
 
