@@ -78,7 +78,7 @@ class Post extends PartialXMLImport {
 		}
 
 		if ( 'nav_menu_item' === $post['post_type'] ) {
-			$this->process_menu_item( $post );
+			//$this->process_menu_item( $post );
 			// todo menu item
 			return;
 		}
