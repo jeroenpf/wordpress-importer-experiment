@@ -6,7 +6,22 @@ use DOMDocument;
 
 class PartialXMLReader {
 
+	/**
+	 * The namespaces found in the XML.
+	 *
+	 * @var array $namespaces
+	 */
+	protected $namespaces;
 
+	/**
+	 * Convert an XML element represented by the given byte-range into a SimpleXMLElement
+	 *
+	 * @param string $object   A colon delimited byte range representing the object in
+	 *                         the WXR XML file. ( e.g 1234:6789 ).
+	 * @param string $wxr_path The filepath of the WXR file.
+	 *
+	 * @return SimpleXMLElement
+	 */
 	public function object_to_simplexml( $object, $wxr_path ) {
 		// Get the XML fragment from the WXR.
 
@@ -19,8 +34,11 @@ class PartialXMLReader {
 	}
 
 	/**
-	 * @param $object
-	 * @param $wxr_path
+	 * Get the XML string for the object (byte range).
+	 *
+	 * @param string $object   A colon delimited byte range representing the object in
+	 *                         the WXR XML file. ( e.g 1234:6789 ).
+	 * @param string $wxr_path The filepath of the WXR file.
 	 *
 	 * @return false|string
 	 */
@@ -37,6 +55,8 @@ class PartialXMLReader {
 
 
 	/**
+	 * Convert the XML string into a SimpleXMLElement.
+	 *
 	 * @param $data
 	 *
 	 * @return SimpleXMLElement
@@ -70,6 +90,8 @@ class PartialXMLReader {
 	}
 
 	/**
+	 * Format the partial XML string into a valid XML string.
+	 *
 	 * @param string $xml_fragment
 	 *
 	 * @return string

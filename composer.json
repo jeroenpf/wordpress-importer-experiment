@@ -4,7 +4,9 @@
     "type": "library",
     "require": {
         "woocommerce/action-scheduler": "^3.1",
-        "ext-simplexml": "*"
+        "ext-simplexml": "*",
+        "ext-dom": "*",
+        "ext-libxml": "*"
     },
     "autoload": {
       "classmap": [
