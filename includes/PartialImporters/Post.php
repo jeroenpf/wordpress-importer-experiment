@@ -14,6 +14,8 @@ use WP_Error;
 
 class Post extends PartialXMLImport {
 
+	use MenuItemTrait, PostTrait;
+
 	const REMAP_COMMENT_TYPE = 'attachment_remap';
 
 	protected $processed_authors = array();
@@ -25,9 +27,9 @@ class Post extends PartialXMLImport {
 	 */
 	private $url_remap;
 
-	private $is_orphaned = false;
-
 	protected $is_new_post = false;
+
+	protected $is_orphaned = false;
 
 	/**
 	 * @var Logger
@@ -78,8 +80,7 @@ class Post extends PartialXMLImport {
 		}
 
 		if ( 'nav_menu_item' === $post['post_type'] ) {
-			//$this->process_menu_item( $post );
-			// todo menu item
+			$this->process_menu_item( $post );
 			return;
 		}
 
@@ -102,6 +103,9 @@ class Post extends PartialXMLImport {
 		// Set meta-data on the post that is used for processing later on.
 		$this->set_post_import_meta( $post, $post_id );
 
+		// Update the url remapping
+		$this->save_url_remap();
+
 		// Add terms to the post (if any).
 		$this->handle_post_terms( $post, $post_id );
 
@@ -110,6 +114,17 @@ class Post extends PartialXMLImport {
 
 		// Add postmeta to the post (if any).
 		$this->handle_post_meta( $post, $post_id );
+	}
+
+	protected function set_post_import_meta( $post, $post_id ) {
+		$wxr_id = (int) $post['post_id'];
+
+		add_post_meta( $post_id, 'import_id', $this->import->get_id(), true );
+		add_post_meta( $post_id, 'wxr_id', $wxr_id, true );
+
+		if ( $this->is_orphaned ) {
+			add_post_meta( $post_id, 'orphaned_wxr_id', (int) $post['post_parent'], true );
+		}
 	}
 
 	/**
@@ -729,45 +744,7 @@ class Post extends PartialXMLImport {
 		return $upload;
 	}
 
-	/**
-	 * @param $id
-	 *
-	 * @return int|null
-	 */
-	protected function get_post_id_by_wxr_id( $id ) {
 
-		$posts = get_posts(
-			array(
-				'fields'     => 'ids',
-				'meta_query' => array(
-					array(
-						'key'   => 'wxr_id',
-						'value' => $id,
-					),
-					array(
-						'key'   => 'import_id',
-						'value' => $this->import->get_id(),
-					),
-				),
-			)
-		);
-
-		return count( $posts ) ? $posts[0] : null;
-
-	}
-
-	protected function set_post_import_meta( $post, $post_id ) {
-		$wxr_id = (int) $post['post_id'];
-
-		add_post_meta( $post_id, 'import_id', $this->import->get_id(), true );
-		add_post_meta( $post_id, 'wxr_id', $wxr_id, true );
-
-		if ( $this->is_orphaned ) {
-			add_post_meta( $post_id, 'orphaned_wxr_id', (int) $post['post_parent'], true );
-		}
-
-		$this->save_url_remap();
-	}
 
 	protected function parse( SimpleXMLElement $xml ) {
 

@@ -45,7 +45,7 @@ class InitializeImport extends StageJob {
 		$this->create_partial_import_jobs( $wxr_file_path );
 
 		// Create stage and jobs that handle attachment related actions.
-		$this->create_attachment_jobs();
+		$this->create_backfilling_jobs();
 
 		// Create the finalize job.
 		$this->create_finalize_job();
@@ -128,11 +128,13 @@ class InitializeImport extends StageJob {
 	 *
 	 * @todo only schedule when the posts stage exists.
 	 */
-	protected function create_attachment_jobs() {
+	protected function create_backfilling_jobs() {
 
-		$stage = ImportStage::get_or_create( 'attachment_remapping', $this->import );
+		$stage = ImportStage::get_or_create( 'backfilling', $this->import );
 
 		$stage->add_job( AttachmentUrlMap::class );
+		$stage->add_job( MissingMenuItems::class );
+		$stage->add_job( OrphanedPosts::class );
 
 		// Run after posts have imported.
 		$stage->depends_on( array( 'posts' ) );
