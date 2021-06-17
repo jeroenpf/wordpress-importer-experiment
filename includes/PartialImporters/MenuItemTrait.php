@@ -2,7 +2,6 @@
 
 namespace ImporterExperiment\PartialImporters;
 
-use ImporterExperiment\Import;
 
 trait MenuItemTrait {
 

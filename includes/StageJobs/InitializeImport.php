@@ -133,6 +133,7 @@ class InitializeImport extends StageJob {
 		$stage = ImportStage::get_or_create( 'backfilling', $this->import );
 
 		$stage->add_job( AttachmentUrlMap::class );
+		$stage->add_job( FeaturedImageMap::class );
 		$stage->add_job( MissingMenuItems::class );
 		$stage->add_job( OrphanedPosts::class );
 

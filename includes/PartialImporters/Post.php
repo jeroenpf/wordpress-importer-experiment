@@ -417,10 +417,6 @@ class Post extends PartialXMLImport {
 
 				do_action( 'import_post_meta', $post_id, $key, $value );
 
-				// if the post has a featured image, take note of this in case of remap
-				if ( '_thumbnail_id' === $key ) {
-					add_post_meta( $post_id, 'featured_image_wxr_id', (int) $value );
-				}
 			}
 		}
 	}
