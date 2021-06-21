@@ -9,9 +9,10 @@ use WP_Comment;
 
 abstract class StageJob implements JobInterface {
 
-	const STATUS_PENDING = 'pending';
-	const STATUS_RUNNING = 'running';
-	const STATUS_DONE    = 'completed';
+	const STATUS_PENDING    = 'pending';
+	const STATUS_DISPATCHED = 'dispatched';
+	const STATUS_RUNNING    = 'running';
+	const STATUS_DONE       = 'completed';
 
 	/**
 	 * @var array

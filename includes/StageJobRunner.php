@@ -12,12 +12,12 @@ use ImporterExperiment\Abstracts\StageJob as JobAbstract;
  *
  * The Stage Job Runner runs jobs in dependant stages.
  *
- * It registers an action hook that will run a specific job and schedule
+ * It registers an action hook that will run a specific job and dispatch
  * more if there are any.
  *
  * Scheduling subsequent jobs depends on the state of each stage. If a stage depends
- * on another that has not completed yet, jobs in that stage will not be scheduled.
- * All pending jobs in a stage that has all its dependencies met, will be scheduled.
+ * on another that has not completed yet, jobs in that stage will not be dispatched.
+ * All pending jobs in a stage that has all its dependencies met, will be dispatched.
  *
  * @package ImporterExperiment
  */
@@ -86,8 +86,6 @@ class StageJobRunner extends JobRunnerAbstract {
 	 */
 	protected function post_execute() {
 
-		$this->stage_job->set_status( JobAbstract::STATUS_DONE );
-
 		// If there are no more jobs left, the stage is complete.
 		if ( ! $this->stage->has_jobs( true ) ) {
 			$this->stage->set_status( ImportStage::STATUS_COMPLETED );
@@ -108,7 +106,6 @@ class StageJobRunner extends JobRunnerAbstract {
 			array(
 				ImportStage::STATUS_RUNNING,
 				ImportStage::STATUS_PENDING,
-				ImportStage::STATUS_SCHEDULED,
 			)
 		);
 

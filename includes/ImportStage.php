@@ -10,7 +10,6 @@ use WP_Comment;
 class ImportStage {
 
 	const STATUS_PENDING   = 'pending';
-	const STATUS_SCHEDULED = 'scheduled';
 	const STATUS_RUNNING   = 'running';
 	const STATUS_COMPLETED = 'completed';
 	const STATUS_HOLD      = 'hold';
@@ -276,7 +275,7 @@ class ImportStage {
 	 *
 	 * Jobs will be dispatched to the underlying job queue system.
 	 *
-	 * @todo set a limit on how many jobs will be scheduled each time
+	 * @todo set a limit on how many jobs will be dispatched each time
 	 *       to prevent timeouts when scheduling too many jobs.
 	 */
 	public function dispatch_jobs() {
@@ -303,7 +302,7 @@ class ImportStage {
 			$args['stage_job'] = $job->comment_ID;
 
 			$dispatcher->dispatch( StageJobRunner::ACTION_HOOK, $class, $args );
-			update_comment_meta( $job->comment_ID, 'status', self::STATUS_SCHEDULED );
+			update_comment_meta( $job->comment_ID, 'status', StageJob::STATUS_DISPATCHED );
 		}
 
 	}

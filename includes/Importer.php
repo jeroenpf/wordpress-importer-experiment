@@ -28,7 +28,7 @@ class Importer {
 		// Register actions and taxonomies
 		add_action( 'admin_init', array( $this, 'register_post_type' ) );
 
-		// Load the scheduler
+		// Load the dispatcher.
 		$this->dispatcher = Dispatcher::instance();
 		$this->dispatcher->init();
 
