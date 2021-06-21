@@ -56,7 +56,7 @@ class WXRImport extends StageJob {
 			return false;
 		}
 
-		$objects = $this->get_objects_and_schedule_next();
+		$objects = $this->get_objects_and_add_next_job();
 
 		// There was no more object.
 		if ( empty( $objects ) ) {
@@ -129,7 +129,7 @@ class WXRImport extends StageJob {
 	}
 
 
-	public function get_objects_and_schedule_next() {
+	public function get_objects_and_add_next_job() {
 
 		$stage = ImportStage::get_or_create( $this->arguments['stage_name'], $this->import );
 
