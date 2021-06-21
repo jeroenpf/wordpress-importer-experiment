@@ -9,7 +9,10 @@ class FinalizeImport extends StageJob {
 
 	public function run() {
 
-		//$this->import->set_status( Import::STATUS_DONE );
+
+		//todo Clean up and do things at the end of an import
+
+
 	}
 
 }
