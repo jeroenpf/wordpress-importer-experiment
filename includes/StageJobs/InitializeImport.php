@@ -85,14 +85,14 @@ class InitializeImport extends StageJob {
 		foreach ( $stages as $stage_name => $settings ) {
 			$count = $this->indexer->get_count( $settings['type'] );
 			if ( ! $count ) {
-				$empty_stages[ $stage_name ] = true;
+				$empty_stages[] = $stage_name;
 				continue;
 			}
 
 			$stage = ImportStage::get_or_create( $stage_name, $this->import );
 
 			if ( ! empty( $settings['depends_on'] ) ) {
-				$stage->depends_on( array_intersect_key( $settings['depends_on'], $empty_stages ) );
+				$stage->depends_on( array_diff( $settings['depends_on'], $empty_stages ) );
 			}
 
 			$stage->set_meta( 'objects', $this->indexer->get_data_raw( $settings['type'] ) );
