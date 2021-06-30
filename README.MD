@@ -28,3 +28,5 @@ If you have installed wp-env, simply run `wp-env start` in the plugin directory.
 This plugin has composer dependencies and uses the composer autoloader. To install them simply run:
 
 `composer install`
+
+## Arch

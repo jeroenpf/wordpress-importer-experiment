@@ -3,10 +3,8 @@
 namespace ImporterExperiment\StageJobs;
 
 use ImporterExperiment\Abstracts\StageJob;
-use ImporterExperiment\Import;
 use ImporterExperiment\ImporterException;
 use ImporterExperiment\ImportStage;
-use ImporterExperiment\Interfaces\Logger;
 use ImporterExperiment\Interfaces\PartialImport;
 use ImporterExperiment\PartialImporters\Author;
 use ImporterExperiment\PartialImporters\Category;

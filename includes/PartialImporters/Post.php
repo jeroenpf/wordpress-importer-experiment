@@ -37,12 +37,13 @@ class Post extends PartialXMLImport {
 	protected $logger;
 
 	public function import() {
+
+		$this->logger = $this->import->get_logger();
+
 		$posts = apply_filters( 'wp_import_post', array( $this->data ) );
 
 		$this->author_mapping    = $this->import->get_meta( 'author_mapping' );
 		$this->processed_authors = $this->import->get_meta( 'processed_authors' );
-
-		$this->logger = $this->import->get_logger();
 
 		foreach ( $posts as $post ) {
 			$this->import_post( $post );
@@ -139,7 +140,8 @@ class Post extends PartialXMLImport {
 	protected function handle_post( $post ) {
 
 		$existsing_post_id = $this->get_existing_post_id( $post );
-		$post_id           = $existsing_post_id ?: $this->handle_new_post( $post );
+
+		$post_id = $existsing_post_id ?: $this->handle_new_post( $post );
 
 		// Stick the post.
 		if ( true === (bool) $post['is_sticky'] ) {

@@ -76,7 +76,7 @@ class InitializeImport extends StageJob {
 			'posts'      => array(
 				'type'       => 'item',
 				'depends_on' => array( 'initialization', 'categories', 'terms', 'tags' ),
-				'per_batch'  => 2,
+				'per_batch'  => 3,
 			),
 		);
 

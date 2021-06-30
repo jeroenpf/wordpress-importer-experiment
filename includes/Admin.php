@@ -4,7 +4,6 @@ namespace ImporterExperiment;
 
 use ActionScheduler;
 use ActionScheduler_Store;
-use ImporterExperiment\Abstracts\Dispatcher;
 use ImporterExperiment\Loggers\CommentLogger;
 use ImporterExperiment\PartialImporters\Author;
 
@@ -253,7 +252,7 @@ class Admin {
 		add_filter(
 			'action_scheduler_queue_runner_time_limit',
 			function() {
-				return 30;
+				return 60;
 			}
 		);
 
@@ -320,6 +319,7 @@ class Admin {
 				'post_id' => $import->get_id(),
 				'type'    => CommentLogger::LOG_COMMENT_TYPE,
 				'number'  => 100,
+				'orderby' => array( 'comment_date_gmt', 'comment_ID' ),
 			)
 		);
 
